@@ -1700,12 +1700,23 @@ class NYUCareerAdvisor:
         if not use_openai:
             return "[OpenAI API call skipped for testing.]"
         try:
+            # Add timeout to prevent hanging
+            import time
+            start_time = time.time()
+            timeout = 30  # 30 seconds timeout
+            
             response = openai.ChatCompletion.create(
                 model="gpt-4",
                 messages=messages,
                 max_tokens=max_tokens,
-                temperature=temperature
+                temperature=temperature,
+                timeout=timeout
             )
+            
+            # Check if we're taking too long
+            if time.time() - start_time > 25:  # Warning at 25 seconds
+                st.warning("⚠️ API call is taking longer than expected...")
+                
             return response.choices[0].message.content
         except Exception as e:
             st.error(f"❌ Error querying OpenAI: {e}")
@@ -2149,12 +2160,30 @@ def career_recommendations_tab(advisor):
             f"Work Environment: {work_env}\n"
             f"Cohort Stage: {cohort_stage}\n"
         )
-        with st.spinner("Inferring your RIASEC scores..."):
+        
+        # Show immediate feedback
+        st.success("✅ Career prediction complete!")
+        
+        with st.spinner("Analyzing your personality profile..."):
             riasec_scores = advisor.infer_riasec_scores_via_gpt(user_profile_text)
+        
         if riasec_scores:
             # Create a beautiful RIASEC visualization
             st.markdown("### 🧠 Your RIASEC Personality Profile")
             st.markdown("*Powered by GPT-4 Analysis*")
+        else:
+            # Fallback RIASEC scores if API fails
+            st.warning("⚠️ Could not analyze personality profile. Using default analysis.")
+            riasec_scores = {
+                "Realistic": 4,
+                "Investigative": 5,
+                "Artistic": 3,
+                "Social": 4,
+                "Enterprising": 3,
+                "Conventional": 2
+            }
+            st.markdown("### 🧠 Your RIASEC Personality Profile")
+            st.markdown("*Using default analysis*")
             
             # Create columns for the visualization
             col1, col2 = st.columns([2, 1])
@@ -2242,7 +2271,71 @@ def career_recommendations_tab(advisor):
                 </div>
                 """, unsafe_allow_html=True)
         else:
-            st.error("❌ Could not analyze your RIASEC profile. Please try again.")
+            # Fallback RIASEC scores if API fails
+            st.warning("⚠️ Could not analyze personality profile. Using default analysis.")
+            riasec_scores = {
+                "Realistic": 4,
+                "Investigative": 5,
+                "Artistic": 3,
+                "Social": 4,
+                "Enterprising": 3,
+                "Conventional": 2
+            }
+            st.markdown("### 🧠 Your RIASEC Personality Profile")
+            st.markdown("*Using default analysis*")
+            
+            # Create columns for the visualization
+            col1, col2 = st.columns([2, 1])
+            
+            with col1:
+                # Create a radar chart-like visualization using bars
+                st.markdown("#### Your Interest Scores (1-7 Scale)")
+                
+                # Define colors for each dimension
+                colors = {
+                    "Realistic": "#FF6B6B",
+                    "Investigative": "#4ECDC4", 
+                    "Artistic": "#45B7D1",
+                    "Social": "#96CEB4",
+                    "Enterprising": "#FFEAA7",
+                    "Conventional": "#DDA0DD"
+                }
+                
+                # Sort by score for better visualization
+                sorted_scores = sorted(riasec_scores.items(), key=lambda x: x[1], reverse=True)
+                
+                for dimension, score in sorted_scores:
+                    # Create a progress bar with color
+                    color = colors.get(dimension, "#6C757D")
+                    
+                    # Calculate percentage for progress bar
+                    percentage = (score - 1) / 6 * 100
+                    
+                    # Create the progress bar
+                    st.markdown(f"""
+                    <div style="margin: 10px 0;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                            <strong style="color: {color};">{dimension}</strong>
+                            <span style="font-weight: bold;">{score}/7</span>
+                        </div>
+                        <div style="background: #f0f0f0; border-radius: 10px; height: 20px; overflow: hidden;">
+                            <div style="background: {color}; height: 100%; width: {percentage}%; border-radius: 10px; transition: width 0.3s ease;"></div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            with col2:
+                # Show top 2 dimensions
+                top_dimensions = sorted_scores[:2]
+                st.markdown("#### 🎯 Your Top Interests")
+                for i, (dimension, score) in enumerate(top_dimensions, 1):
+                    color = colors.get(dimension, "#6C757D")
+                    st.markdown(f"""
+                    <div style="background: {color}20; padding: 10px; border-radius: 8px; margin: 5px 0; border-left: 4px solid {color};">
+                        <strong style="color: {color};">#{i} {dimension}</strong><br>
+                        <small>Score: {score}/7</small>
+                    </div>
+                    """, unsafe_allow_html=True)
 
         # 3. Generate and display recommendations
         with st.spinner("Generating your personalized recommendations..."):
