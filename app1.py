@@ -1,17 +1,24 @@
 import streamlit as st
 import openai, pandas as pd, requests, warnings, json, traceback
 from datetime import datetime
-from sklearn.pipeline import Pipeline
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import cross_val_score
-from sklearn.metrics import accuracy_score, classification_report
-from sklearn.preprocessing import LabelEncoder
-from sklearn.svm import SVC
-from sklearn.linear_model import LogisticRegression
-from sklearn.naive_bayes import MultinomialNB
-import xgboost as xgb
-from sklearn.base import BaseEstimator, ClassifierMixin
+# Try to import ML libraries, with fallback for Python 3.13 compatibility
+try:
+    from sklearn.pipeline import Pipeline
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.model_selection import cross_val_score
+    from sklearn.metrics import accuracy_score, classification_report
+    from sklearn.preprocessing import LabelEncoder
+    from sklearn.svm import SVC
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.naive_bayes import MultinomialNB
+    import xgboost as xgb
+    from sklearn.base import BaseEstimator, ClassifierMixin
+    ML_AVAILABLE = True
+except ImportError as e:
+    st.warning(f"⚠️ Some ML libraries not available: {e}")
+    st.info("The app will work with basic features, but some advanced ML features may be limited.")
+    ML_AVAILABLE = False
 import numpy as np
 import uuid
 from textblob import TextBlob
@@ -525,6 +532,20 @@ def predict_sector_from_text(user_goals, desired_industry, work_env):
     if not user_goals:
         st.warning("No user goals provided for sector prediction")
         return "Unknown"
+    
+    # Fallback prediction if ML libraries not available
+    if not ML_AVAILABLE:
+        text_input = f"{user_goals} {desired_industry} {work_env}".lower()
+        if any(word in text_input for word in ['academic', 'research', 'professor', 'university']):
+            return "Academic"
+        elif any(word in text_input for word in ['industry', 'company', 'business', 'corporate']):
+            return "Industry"
+        elif any(word in text_input for word in ['government', 'public', 'policy']):
+            return "Government"
+        elif any(word in text_input for word in ['non-profit', 'ngo', 'charity']):
+            return "Non-profit"
+        else:
+            return "Industry"  # Default to industry
     
     # Load model fresh
     text_sector_model = ensure_model_loaded()
