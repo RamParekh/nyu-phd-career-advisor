@@ -2171,6 +2171,92 @@ def career_recommendations_tab(advisor):
             # Create a beautiful RIASEC visualization
             st.markdown("### 🧠 Your RIASEC Personality Profile")
             st.markdown("*Powered by GPT-4 Analysis*")
+            
+            # Create columns for the visualization
+            col1, col2 = st.columns([2, 1])
+            
+            with col1:
+                # Create a radar chart-like visualization using bars
+                st.markdown("#### Your Interest Scores (1-7 Scale)")
+                
+                # Define colors for each dimension
+                colors = {
+                    "Realistic": "#FF6B6B",
+                    "Investigative": "#4ECDC4", 
+                    "Artistic": "#45B7D1",
+                    "Social": "#96CEB4",
+                    "Enterprising": "#FFEAA7",
+                    "Conventional": "#DDA0DD"
+                }
+                
+                # Sort by score for better visualization
+                sorted_scores = sorted(riasec_scores.items(), key=lambda x: x[1], reverse=True)
+                
+                for dimension, score in sorted_scores:
+                    # Create a progress bar with color
+                    color = colors.get(dimension, "#6C757D")
+                    
+                    # Calculate percentage for progress bar
+                    percentage = (score - 1) / 6 * 100
+                    
+                    # Create the progress bar
+                    st.markdown(f"""
+                    <div style="margin: 10px 0;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                            <strong style="color: {color};">{dimension}</strong>
+                            <span style="font-weight: bold;">{score}/7</span>
+                        </div>
+                        <div style="background: #f0f0f0; border-radius: 10px; height: 20px; overflow: hidden;">
+                            <div style="background: {color}; height: 100%; width: {percentage}%; border-radius: 10px; transition: width 0.3s ease;"></div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            with col2:
+                # Show top 2 dimensions
+                top_dimensions = sorted_scores[:2]
+                st.markdown("#### 🎯 Your Top Interests")
+                for i, (dimension, score) in enumerate(top_dimensions, 1):
+                    color = colors.get(dimension, "#6C757D")
+                    st.markdown(f"""
+                    <div style="background: {color}20; padding: 10px; border-radius: 8px; margin: 5px 0; border-left: 4px solid {color};">
+                        <strong style="color: {color};">#{i} {dimension}</strong><br>
+                        <small>Score: {score}/7</small>
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            # RIASEC explanation in an expander
+            with st.expander("📚 What is RIASEC?", expanded=False):
+                st.markdown("""
+                **RIASEC** is a vocational interest theory that categorizes people into six personality types:
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 15px 0;">
+                    <div style="background: #FF6B6B20; padding: 15px; border-radius: 8px; border-left: 4px solid #FF6B6B;">
+                        <strong style="color: #FF6B6B;">🔧 Realistic (R)</strong><br>
+                        <small>Practical, hands-on, technical. Prefers working with things, machines, tools, or outdoor activities.</small>
+                    </div>
+                    <div style="background: #4ECDC420; padding: 15px; border-radius: 8px; border-left: 4px solid #4ECDC4;">
+                        <strong style="color: #4ECDC4;">🔬 Investigative (I)</strong><br>
+                        <small>Analytical, intellectual, scientific. Enjoys research, problem-solving, and complex thinking.</small>
+                    </div>
+                    <div style="background: #45B7D120; padding: 15px; border-radius: 8px; border-left: 4px solid #45B7D1;">
+                        <strong style="color: #45B7D1;">🎨 Artistic (A)</strong><br>
+                        <small>Creative, expressive, innovative. Prefers unstructured work, design, and self-expression.</small>
+                    </div>
+                    <div style="background: #96CEB420; padding: 15px; border-radius: 8px; border-left: 4px solid #96CEB4;">
+                        <strong style="color: #96CEB4;">🤝 Social (S)</strong><br>
+                        <small>Cooperative, supportive, helpful. Enjoys working with people, teaching, and helping others.</small>
+                    </div>
+                    <div style="background: #FFEAA720; padding: 15px; border-radius: 8px; border-left: 4px solid #FFEAA7;">
+                        <strong style="color: #FFEAA7;">💼 Enterprising (E)</strong><br>
+                        <small>Persuasive, leadership, competitive. Enjoys leading, selling, and starting projects.</small>
+                    </div>
+                    <div style="background: #DDA0DD20; padding: 15px; border-radius: 8px; border-left: 4px solid #DDA0DD;">
+                        <strong style="color: #DDA0DD;">📊 Conventional (C)</strong><br>
+                        <small>Organized, detail-oriented, systematic. Prefers structured tasks and data management.</small>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
         else:
             # Fallback RIASEC scores if API fails
             st.warning("⚠️ Could not analyze personality profile. Using default analysis.")
@@ -2270,8 +2356,6 @@ def career_recommendations_tab(advisor):
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
-        else:
-            # Fallback RIASEC scores if API fails
             st.warning("⚠️ Could not analyze personality profile. Using default analysis.")
             riasec_scores = {
                 "Realistic": 4,
