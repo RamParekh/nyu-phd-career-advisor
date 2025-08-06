@@ -1,0 +1,16 @@
+# Minimal requirements for Python 3.13 compatibility
+streamlit>=1.28.0
+pandas>=2.1.0
+numpy>=1.25.0
+openai>=0.28.0
+requests>=2.31.0
+textblob>=0.17.0
+vaderSentiment>=3.3.2
+contractions>=0.1.73
+openpyxl>=3.1.0
+setuptools>=68.0.0
+wheel>=0.41.0
+
+# Optional ML packages - comment out if they cause issues
+# scikit-learn>=1.3.0
+# xgboost>=2.0.0 
