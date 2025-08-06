@@ -28,7 +28,6 @@ try:
     VADER_AVAILABLE = True
 except ImportError:
     VADER_AVAILABLE = False
-    st.sidebar.warning("⚠️ VADER not installed. Run: pip install vaderSentiment")
 
 warnings.filterwarnings("ignore")
 
@@ -50,7 +49,6 @@ def handle_duplicate_headers(headers):
 st.set_page_config(page_title="NYU PhD Career Advisor", layout="wide", initial_sidebar_state="expanded")
 
 # --- API Keys from Streamlit Secrets ---
-import streamlit as st
 
 # Try to get API keys from Streamlit secrets, fallback to environment variables or placeholder
 try:
@@ -66,6 +64,10 @@ except:
 
 # Change the sidebar checkbox label
 use_openai = st.sidebar.checkbox("For Career recommendation", value=False)
+
+# Show VADER warning if not available
+if not VADER_AVAILABLE:
+    st.sidebar.warning("⚠️ VADER not installed. Run: pip install vaderSentiment")
 
 # -----------------------------------------------------------------------------
 # Local Data Loading Helper --------------------------------------------
@@ -86,7 +88,9 @@ def check_data_files():
             missing_files.append(file_path)
     
     if missing_files:
-        st.error(f"Missing required data files: {missing_files}")
+        st.warning(f"⚠️ Missing data files: {missing_files}")
+        st.info("📋 To get the full functionality, please add the required data files to the 'data' folder.")
+        st.info("🔗 You can also use the 'convert_data_to_secrets.py' script to convert your data files to Streamlit secrets.")
         return False
     
     return True
