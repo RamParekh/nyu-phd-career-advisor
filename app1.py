@@ -1865,7 +1865,10 @@ class NYUCareerAdvisor:
         financial_scholarships=None,
         funding=None,
         desirability=None,
-        user_riasec=None
+        user_riasec=None,
+        sentiment_scores=None,
+        theme_sentiments=None,
+        processed_sentiment_df=None
     ):
         if self.df is None:
             return "No dataset loaded. Please upload an Excel file."
@@ -2297,7 +2300,10 @@ def career_recommendations_tab(advisor):
                 financial_scholarships=financial_scholarships,
                 funding=funding,
                 desirability=desirability,
-                user_riasec=riasec_scores
+                user_riasec=riasec_scores,
+                sentiment_scores=sentiment_scores,
+                theme_sentiments=theme_sentiments,
+                processed_sentiment_df=processed_sentiment_df
             )
             if recommendations:
                 st.markdown("### 📋 Your Personalized Career Recommendations")
@@ -2306,7 +2312,7 @@ def career_recommendations_tab(advisor):
                 # Create a beautiful recommendations container
                 st.markdown(f"""
                 <div style='background:white; border:2px solid #57068c; border-radius:12px; padding:25px; margin:20px 0; box-shadow:0 4px 12px rgba(87,6,140,0.1);'>
-                    {recommendations}
+                    {recommendations.replace('</div>', '')}
                 </div>
                 """, unsafe_allow_html=True)
                 
