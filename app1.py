@@ -1733,15 +1733,24 @@ class NYUCareerAdvisor:
             import time
             start_time = time.time()
             
-            # Use the new OpenAI API format with timeout
-            client = openai.OpenAI()
-            response = client.chat.completions.create(
-                model="gpt-4",
-                messages=messages,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                timeout=10  # 10 second timeout for faster response
-            )
+            # Use the OpenAI API format (compatible with both old and new versions)
+            try:
+                # Try new format first
+                client = openai.OpenAI()
+                response = client.chat.completions.create(
+                    model="gpt-4",
+                    messages=messages,
+                    max_tokens=max_tokens,
+                    temperature=temperature
+                )
+            except AttributeError:
+                # Fallback to old format
+                response = openai.ChatCompletion.create(
+                    model="gpt-4",
+                    messages=messages,
+                    max_tokens=max_tokens,
+                    temperature=temperature
+                )
             
             # Check if we're taking too long
             if time.time() - start_time > 10:  # Warning at 10 seconds
