@@ -2174,22 +2174,9 @@ def career_recommendations_tab(advisor):
     if not can_recommend:
         st.warning("Please provide at least your Career Goals and Soft Skills.")
     
-    # Add a simple test button that always works
-    if st.button("🧪 Test Simple Recommendation"):
-        st.success("✅ Test button works!")
-        st.write("This confirms the button functionality is working.")
-    
     if st.button("Get Career Recommendations", disabled=not can_recommend):
-        st.success("🎉 Button clicked! Processing your request...")
-        st.write("🔍 Debug: Button clicked! Starting recommendation generation...")
-        
-        # Show immediate feedback
-        st.info("📊 Processing your career information...")
-        
         # 1. Predict sector using ML model and display
-        st.write("🔍 Debug: Predicting sector...")
         predicted_sector = predict_sector_from_text(user_goals, desired_industry, work_env)
-        st.write(f"🔍 Debug: Predicted sector: {predicted_sector}")
         sector_label = {
             "Academic": "Academia",
             "Industry": "Industry",
@@ -2750,32 +2737,6 @@ def main():
         st.title("🎓 NYU PhD Career Advisor")
         st.write("Welcome! Let's help you find your career path.")
         
-        # Debug info
-        st.sidebar.write(f"📊 Data loaded: {len(df) if df is not None else 0} records")
-        st.sidebar.write(f"🔧 ML_AVAILABLE: {ML_AVAILABLE}")
-        
-        # Check if we're in deployment environment
-        import os
-        if os.path.exists("/mount/src"):
-            st.sidebar.info("🌐 Running on Streamlit Cloud")
-        else:
-            st.sidebar.info("💻 Running locally")
-        
-        # Show data file status
-        data_files = [
-            "data/imputed_data_NYU copy 3.xlsx",
-            "data/Events for Graduate Students.csv",
-            "data/sentiment analysis- Final combined .xlsx",
-            "data/phd_career_sector_training_data_final_1200.xlsx"
-        ]
-        
-        st.sidebar.write("📁 Data files:")
-        for file_path in data_files:
-            if os.path.exists(file_path):
-                st.sidebar.write(f"✅ {os.path.basename(file_path)}")
-            else:
-                st.sidebar.write(f"❌ {os.path.basename(file_path)}")
-        
         advisor = NYUCareerAdvisor(df)
         tab1, tab2 = st.tabs(["Career Recommendations", "Job Postings"])
         with tab1:
@@ -2784,39 +2745,10 @@ def main():
             job_postings_tab()
     except Exception as e:
         st.error(f"🚨 App Error: {e}")
-        st.code(traceback.format_exc())
         st.info("Please check the logs for more details.")
 
 # Load Handshake events from local file
 handshake_events_df = load_handshake_events()
-
-# Debug function to check data files
-def debug_data_files():
-    """Check and display info about local data files."""
-    files = [
-        "data/imputed_data_NYU copy 3.xlsx",
-        "data/Events for Graduate Students.csv",
-        "data/sentiment analysis- Final combined .xlsx",
-        "data/phd_career_sector_training_data_final_1200.xlsx"
-    ]
-    
-    for file_path in files:
-        if os.path.exists(file_path):
-            print(f"✅ {file_path} exists")
-            try:
-                if file_path.endswith('.xlsx'):
-                    df = pd.read_excel(file_path)
-                elif file_path.endswith('.csv'):
-                    df = pd.read_csv(file_path)
-                print(f"   📊 Shape: {df.shape}")
-                print(f"   📋 Columns: {list(df.columns)}")
-            except Exception as e:
-                print(f"   ❌ Error reading: {e}")
-        else:
-            print(f"❌ {file_path} missing")
-
-# Uncomment to debug data files
-# debug_data_files()
 
 # Add these function definitions before they're used (around line 800)
 
@@ -2861,33 +2793,23 @@ CUSTOM_VADER_LEXICON = {
     'good luck with that': -2.0, 'i bet': -1.0,
 }
 
-# Load data globally with better error handling
+# Load data globally
 try:
-    st.info("🔄 Loading data...")
     all_data = load_data_once()
     df = all_data.get('nyu_data', None)
     handshake_events_df = all_data.get('handshake_events', pd.DataFrame())
     sentiment_df = all_data.get('sentiment_data', None)
     
     if df is None:
-        st.error("❌ Could not load NYU career data.")
-        st.info("📋 Trying alternative loading method...")
-        
         # Try direct file loading as fallback
         try:
             df = pd.read_excel("data/imputed_data_NYU copy 3.xlsx")
-            st.success(f"✅ Data loaded via fallback: {len(df)} records")
-        except Exception as fallback_error:
-            st.error(f"❌ Fallback loading also failed: {fallback_error}")
-            st.info("📋 Please check if data files are in the repository.")
+        except Exception:
+            st.error("❌ Could not load data. Please check if data files are in the repository.")
             st.stop()
-    else:
-        st.success(f"✅ Data loaded successfully: {len(df)} records")
         
 except Exception as e:
     st.error(f"🚨 Error loading data: {e}")
-    st.info("📋 This might be a deployment environment issue.")
-    st.code(traceback.format_exc())
     st.stop()
 
 if __name__ == "__main__":
