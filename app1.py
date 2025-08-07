@@ -1727,32 +1727,44 @@ def display_adzuna_jobs(job_data):
 class NYUCareerAdvisor:
     def __init__(self, df):
         self.df = df
+        self._cache = {}  # Simple cache for API responses
 
     def query_openai(self, messages, max_tokens=1000, temperature=0.5):
         if not use_openai:
             return "[OpenAI API call skipped for testing.]"
+        
+        # Create cache key from messages
+        cache_key = str(messages) + str(max_tokens) + str(temperature)
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+        
         try:
             # Add timeout to prevent hanging
             import time
             start_time = time.time()
             
-            # Use the new OpenAI API format
+            # Use the new OpenAI API format with timeout
             client = openai.OpenAI()
             response = client.chat.completions.create(
                 model="gpt-4",
                 messages=messages,
                 max_tokens=max_tokens,
-                temperature=temperature
+                temperature=temperature,
+                timeout=15  # 15 second timeout for Streamlit Cloud
             )
             
             # Check if we're taking too long
-            if time.time() - start_time > 25:  # Warning at 25 seconds
+            if time.time() - start_time > 10:  # Warning at 10 seconds
                 st.warning("⚠️ API call is taking longer than expected...")
-                
-            return response.choices[0].message.content
+            
+            result = response.choices[0].message.content
+            # Cache the result
+            self._cache[cache_key] = result
+            return result
         except Exception as e:
             st.error(f"❌ Error querying OpenAI: {e}")
-            return None
+            # Return a fallback response instead of None
+            return "[OpenAI API call failed - using fallback data]"
 
     def summarize_text_column(self, series, sample_size=3):
         if not use_openai:
@@ -1799,31 +1811,19 @@ class NYUCareerAdvisor:
                 "Enterprising": 3,
                 "Conventional": 2
             }
+        
+        # Use a simpler, faster prompt for Streamlit Cloud
         prompt = f"""
-        You are a vocational psychologist. 
-        Based on the text below about the user's background and interests, 
-        estimate (roughly) how they score from 1 to 7 on each of the six RIASEC categories:
-        Realistic, Investigative, Artistic, Social, Enterprising, Conventional.
-        Return ONLY valid JSON with exactly these six keys: 
-        'Realistic', 'Investigative', 'Artistic', 'Social', 'Enterprising', 'Conventional'.
-        Example:
-        {{
-            "Realistic": 3,
-            "Investigative": 6,
-            "Artistic": 2,
-            "Social": 5,
-            "Enterprising": 4,
-            "Conventional": 2
-        }}
-        ---
-        {user_text}
-        ---
+        Based on this text, estimate RIASEC scores (1-7):
+        {user_text[:500]}  # Limit text length for speed
+        
+        Return JSON: {{"Realistic":3,"Investigative":5,"Artistic":2,"Social":4,"Enterprising":3,"Conventional":2}}
         """
         messages = [
-            {"role": "system", "content": "You are an expert in vocational interest classification."},
+            {"role": "system", "content": "Vocational psychologist. Return only JSON."},
             {"role": "user", "content": prompt}
         ]
-        raw = self.query_openai(messages, max_tokens=300)
+        raw = self.query_openai(messages, max_tokens=150)  # Reduced tokens for speed
         if not raw:
             return {}
         try:
@@ -1865,7 +1865,14 @@ class NYUCareerAdvisor:
         if self.df is None:
             return "No dataset loaded. Please upload an Excel file."
 
-        # Original logic
+        # Show progress
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        # Step 1: Filter data
+        status_text.text("🔍 Filtering data...")
+        progress_bar.progress(10)
+        
         filtered_df = self.df.copy()
         if "academic_division" in filtered_df.columns:
             if selected_division != "(No academic_division column)":
@@ -1873,10 +1880,15 @@ class NYUCareerAdvisor:
                 if filtered_df.empty:
                     return f"No rows found for academic_division = {selected_division}"
 
+        # Step 2: Quick data insights (no OpenAI calls)
+        status_text.text("📊 Analyzing data insights...")
+        progress_bar.progress(30)
+        
         data_insights = []
         all_columns = filtered_df.columns.tolist()
 
-        for col in all_columns:
+        # Limit to first 10 columns for speed
+        for col in all_columns[:10]:
             col_data = filtered_df[col].dropna()
             if col_data.empty:
                 continue
@@ -1884,17 +1896,18 @@ class NYUCareerAdvisor:
                 mean_val = col_data.mean()
                 data_insights.append(f"Column '{col}': average={round(mean_val, 2)}")
             else:
-                avg_len = col_data.astype(str).map(len).mean()
-                if avg_len > 40:
-                    summary = self.summarize_text_column(col_data, sample_size=3)
-                    data_insights.append(f"Column '{col}' (text summary): {summary}")
-                else:
-                    top_vals = col_data.value_counts().head(3).index.tolist()
-                    data_insights.append(f"Column '{col}' top responses: {top_vals}")
+                # Skip OpenAI summarization for speed - just show top values
+                top_vals = col_data.value_counts().head(3).index.tolist()
+                data_insights.append(f"Column '{col}' top responses: {top_vals}")
 
+        # Step 3: Quick relevant columns analysis
+        status_text.text("🎯 Finding relevant insights...")
+        progress_bar.progress(50)
+        
         relevant_cols = self.find_relevant_columns(self.df)
         relevant_summaries = []
-        for rcol in relevant_cols:
+        # Limit to first 5 relevant columns
+        for rcol in relevant_cols[:5]:
             rdata = self.df[rcol].dropna()
             if rdata.empty:
                 continue
@@ -1902,16 +1915,16 @@ class NYUCareerAdvisor:
                 mean_val = rdata.mean()
                 relevant_summaries.append(f"Relevant Column '{rcol}': average={round(mean_val, 2)}")
             else:
-                avg_len = rdata.astype(str).map(len).mean()
-                if avg_len > 40:
-                    summary = self.summarize_text_column(rdata, sample_size=2)
-                    relevant_summaries.append(f"Relevant Column '{rcol}' (text summary): {summary}")
-                else:
-                    top_vals = rdata.value_counts().head(2).index.tolist()
-                    relevant_summaries.append(f"Relevant Column '{rcol}' top: {top_vals}")
+                # Skip OpenAI summarization for speed
+                top_vals = rdata.value_counts().head(2).index.tolist()
+                relevant_summaries.append(f"Relevant Column '{rcol}' top: {top_vals}")
 
         relevant_cols_str = "\n".join(relevant_summaries) or "No additional relevant columns found."
 
+        # Step 4: Crucial factors analysis
+        status_text.text("⚡ Analyzing career factors...")
+        progress_bar.progress(70)
+        
         crucial_cols = [
             "Job Relatedness", "Salary", "Benefits", "Job security",
             "Job location", "Opportunity_for_advancement", "Intellectual_challenge",
@@ -1932,14 +1945,23 @@ class NYUCareerAdvisor:
                         factor_insights.append(f"{col}: top responses = {top_vals}")
         factor_insights_str = "\n".join(factor_insights) or "No crucial column data available in the filtered set."
 
+        # Step 5: Quick correlation analysis (limited)
+        status_text.text("📈 Calculating correlations...")
+        progress_bar.progress(85)
+        
         numeric_cols = filtered_df.select_dtypes(include=['int','float']).columns
         if len(numeric_cols) > 1:
+            # Limit to top 3 columns for speed
             stds = filtered_df[numeric_cols].std().abs().sort_values(ascending=False)
-            top_cols = stds.head(5).index
+            top_cols = stds.head(3).index
             corr_matrix = filtered_df[top_cols].corr().round(2)
             data_insights.append("Limited Correlation Matrix:\n" + corr_matrix.to_string())
 
         insights_str = "\n".join(data_insights) or "No data insights found after filtering."
+        
+        # Complete progress
+        progress_bar.progress(100)
+        status_text.text("✅ Analysis complete!")
 
         if not income.strip():
             income = "Approx. range from web sources: $60k–$80k"
