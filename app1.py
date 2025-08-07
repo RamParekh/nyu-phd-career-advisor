@@ -2707,6 +2707,12 @@ def job_postings_tab():
 # ----------------------------------------------------------------------------
 def main():
     try:
+        st.title("🎓 NYU PhD Career Advisor")
+        st.write("Welcome! Let's help you find your career path.")
+        
+        # Debug info
+        st.sidebar.write(f"📊 Data loaded: {len(df) if df is not None else 0} records")
+        
         advisor = NYUCareerAdvisor(df)
         tab1, tab2 = st.tabs(["Career Recommendations", "Job Postings"])
         with tab1:
@@ -2792,9 +2798,23 @@ CUSTOM_VADER_LEXICON = {
     'good luck with that': -2.0, 'i bet': -1.0,
 }
 
-# Check data files on startup
-if not check_data_files():
-    st.error("Please ensure all required data files are present in the 'data' folder.")
+# Load data globally
+try:
+    all_data = load_data_once()
+    df = all_data.get('nyu_data', None)
+    handshake_events_df = all_data.get('handshake_events', pd.DataFrame())
+    sentiment_df = all_data.get('sentiment_data', None)
+    
+    if df is None:
+        st.error("❌ Could not load NYU career data. Please check your data files.")
+        st.info("📋 Make sure the data files are in the 'data' folder.")
+        st.stop()
+    else:
+        st.success(f"✅ Data loaded successfully: {len(df)} records")
+        
+except Exception as e:
+    st.error(f"🚨 Error loading data: {e}")
+    st.code(traceback.format_exc())
     st.stop()
 
 if __name__ == "__main__":
