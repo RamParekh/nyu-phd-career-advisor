@@ -854,11 +854,8 @@ def calculate_sentiment_with_multiple_models(text):
         tb_score = -0.2
         results['TextBlob'] = tb_score
 
-    # Weighted ensemble - use all scores, even small ones
-    if abs(results['VADER']) > 0.001 or abs(tb_score) > 0.001:
-        results['Ensemble'] = vader_weight * results['VADER'] + tb_weight * tb_score
-    else:
-        results['Ensemble'] = 0.0
+    # Weighted ensemble - always calculate ensemble score
+    results['Ensemble'] = vader_weight * results['VADER'] + tb_weight * tb_score
 
     # If both models are neutral but sarcasm cues, nudge negative
     if sarcasm and abs(results['Ensemble']) < 0.05:
