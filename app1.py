@@ -2174,6 +2174,7 @@ def career_recommendations_tab(advisor):
             "Entrepreneurial": "Business",
             "Unknown": "Unknown (Model Error)"
         }.get(predicted_sector, predicted_sector)
+        
         # Create a beautiful career prediction card
         st.markdown(f"""
         <div style='margin:20px 0; padding:20px; border:2px solid #57068c; background:linear-gradient(135deg, #57068c10, #8850c810); border-radius:12px; box-shadow:0 4px 12px rgba(87,6,140,0.1);'>
@@ -2188,262 +2189,138 @@ def career_recommendations_tab(advisor):
         </div>
         """, unsafe_allow_html=True)
 
-        # 2. Infer and display RIASEC scores
-        user_profile_text = (
-            f"Career Goals: {user_goals}\n"
-            f"Soft Skills: {user_tech_skills}\n"
-            f"Research Interests: {research_interests}\n"
-            f"Desired Industry: {desired_industry}\n"
-            f"Work Environment: {work_env}\n"
-            f"Cohort Stage: {cohort_stage}\n"
-        )
+        # 2. Simple RIASEC scores (no API calls)
+        user_profile_text = f"{user_goals} {user_tech_skills} {research_interests}"
         
-        # Show immediate feedback
-        st.success("✅ Career prediction complete!")
+        # Simple keyword-based RIASEC scoring
+        text = user_profile_text.lower()
+        riasec_scores = {
+            "Realistic": 3,
+            "Investigative": 4,
+            "Artistic": 3,
+            "Social": 4,
+            "Enterprising": 3,
+            "Conventional": 3
+        }
         
-        with st.spinner("Analyzing your personality profile..."):
-            riasec_scores = advisor.infer_riasec_scores_via_gpt(user_profile_text)
+        # Adjust based on keywords
+        if any(word in text for word in ["data", "analysis", "research", "science"]):
+            riasec_scores["Investigative"] += 2
+        if any(word in text for word in ["creative", "design", "art", "writing"]):
+            riasec_scores["Artistic"] += 2
+        if any(word in text for word in ["team", "collaboration", "helping", "teaching"]):
+            riasec_scores["Social"] += 2
+        if any(word in text for word in ["leadership", "management", "business", "startup"]):
+            riasec_scores["Enterprising"] += 2
+        if any(word in text for word in ["organization", "detail", "process", "structure"]):
+            riasec_scores["Conventional"] += 2
         
-        # Always show RIASEC visualization, with fallback if API fails
-        if not riasec_scores:
-            st.warning("⚠️ Could not analyze personality profile. Using default analysis.")
-            riasec_scores = {
-                "Realistic": 4,
-                "Investigative": 5,
-                "Artistic": 3,
-                "Social": 4,
-                "Enterprising": 3,
-                "Conventional": 2
+        # Display RIASEC scores
+        st.markdown("### 🧠 Your RIASEC Personality Profile")
+        st.markdown("*Based on keyword analysis*")
+        
+        # Create columns for the visualization
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            # Create a radar chart-like visualization using bars
+            st.markdown("#### Your Interest Scores (1-7 Scale)")
+            
+            # Define colors for each dimension
+            colors = {
+                "Realistic": "#FF6B6B",
+                "Investigative": "#4ECDC4", 
+                "Artistic": "#45B7D1",
+                "Social": "#96CEB4",
+                "Enterprising": "#FFEAA7",
+                "Conventional": "#DDA0DD"
             }
-            st.markdown("### 🧠 Your RIASEC Personality Profile")
-            st.markdown("*Using default analysis*")
-        else:
-            st.markdown("### 🧠 Your RIASEC Personality Profile")
-            st.markdown("*Powered by GPT-4 Analysis*")
             
-            # Create columns for the visualization
-            col1, col2 = st.columns([2, 1])
+            # Sort by score for better visualization
+            sorted_scores = sorted(riasec_scores.items(), key=lambda x: x[1], reverse=True)
             
-            with col1:
-                # Create a radar chart-like visualization using bars
-                st.markdown("#### Your Interest Scores (1-7 Scale)")
+            for dimension, score in sorted_scores:
+                # Create a progress bar with color
+                color = colors.get(dimension, "#6C757D")
                 
-                # Define colors for each dimension
-                colors = {
-                    "Realistic": "#FF6B6B",
-                    "Investigative": "#4ECDC4", 
-                    "Artistic": "#45B7D1",
-                    "Social": "#96CEB4",
-                    "Enterprising": "#FFEAA7",
-                    "Conventional": "#DDA0DD"
-                }
+                # Calculate percentage for progress bar
+                percentage = (score - 1) / 6 * 100
                 
-                # Sort by score for better visualization
-                sorted_scores = sorted(riasec_scores.items(), key=lambda x: x[1], reverse=True)
-                
-                for dimension, score in sorted_scores:
-                    # Create a progress bar with color
-                    color = colors.get(dimension, "#6C757D")
-                    
-                    # Calculate percentage for progress bar
-                    percentage = (score - 1) / 6 * 100
-                    
-                    # Create the progress bar
-                    st.markdown(f"""
-                    <div style="margin: 10px 0;">
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                            <strong style="color: {color};">{dimension}</strong>
-                            <span style="font-weight: bold;">{score}/7</span>
-                        </div>
-                        <div style="background: #f0f0f0; border-radius: 10px; height: 20px; overflow: hidden;">
-                            <div style="background: {color}; height: 100%; width: {percentage}%; border-radius: 10px; transition: width 0.3s ease;"></div>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-            
-            with col2:
-                # Show top 2 dimensions
-                top_dimensions = sorted_scores[:2]
-                st.markdown("#### 🎯 Your Top Interests")
-                for i, (dimension, score) in enumerate(top_dimensions, 1):
-                    color = colors.get(dimension, "#6C757D")
-                    st.markdown(f"""
-                    <div style="background: {color}20; padding: 10px; border-radius: 8px; margin: 5px 0; border-left: 4px solid {color};">
-                        <strong style="color: {color};">#{i} {dimension}</strong><br>
-                        <small>Score: {score}/7</small>
-                    </div>
-                    """, unsafe_allow_html=True)
-            
-            # RIASEC explanation in an expander
-            with st.expander("📚 What is RIASEC?", expanded=False):
-                st.markdown("""
-                **RIASEC** is a vocational interest theory that categorizes people into six personality types:
-                
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 15px 0;">
-                    <div style="background: #FF6B6B20; padding: 15px; border-radius: 8px; border-left: 4px solid #FF6B6B;">
-                        <strong style="color: #FF6B6B;">🔧 Realistic (R)</strong><br>
-                        <small>Practical, hands-on, technical. Prefers working with things, machines, tools, or outdoor activities.</small>
-                    </div>
-                    <div style="background: #4ECDC420; padding: 15px; border-radius: 8px; border-left: 4px solid #4ECDC4;">
-                        <strong style="color: #4ECDC4;">🔬 Investigative (I)</strong><br>
-                        <small>Analytical, intellectual, scientific. Enjoys research, problem-solving, and complex thinking.</small>
-                    </div>
-                    <div style="background: #45B7D120; padding: 15px; border-radius: 8px; border-left: 4px solid #45B7D1;">
-                        <strong style="color: #45B7D1;">🎨 Artistic (A)</strong><br>
-                        <small>Creative, expressive, innovative. Prefers unstructured work, design, and self-expression.</small>
-                    </div>
-                    <div style="background: #96CEB420; padding: 15px; border-radius: 8px; border-left: 4px solid #96CEB4;">
-                        <strong style="color: #96CEB4;">🤝 Social (S)</strong><br>
-                        <small>Cooperative, supportive, helpful. Enjoys working with people, teaching, and helping others.</small>
-                    </div>
-                    <div style="background: #FFEAA720; padding: 15px; border-radius: 8px; border-left: 4px solid #FFEAA7;">
-                        <strong style="color: #FFEAA7;">💼 Enterprising (E)</strong><br>
-                        <small>Persuasive, leadership, competitive. Enjoys leading, selling, and starting projects.</small>
-                    </div>
-                    <div style="background: #DDA0DD20; padding: 15px; border-radius: 8px; border-left: 4px solid #DDA0DD;">
-                        <strong style="color: #DDA0DD;">📊 Conventional (C)</strong><br>
-                        <small>Organized, detail-oriented, systematic. Prefers structured tasks and data management.</small>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-            st.warning("⚠️ Could not analyze personality profile. Using default analysis.")
-            riasec_scores = {
-                "Realistic": 4,
-                "Investigative": 5,
-                "Artistic": 3,
-                "Social": 4,
-                "Enterprising": 3,
-                "Conventional": 2
-            }
-            st.markdown("### 🧠 Your RIASEC Personality Profile")
-            st.markdown("*Using default analysis*")
-        
-        # Create columns for the visualization (shared between if and else)
-            col1, col2 = st.columns([2, 1])
-            
-            with col1:
-                # Create a radar chart-like visualization using bars
-                st.markdown("#### Your Interest Scores (1-7 Scale)")
-                
-                # Define colors for each dimension
-                colors = {
-                    "Realistic": "#FF6B6B",
-                    "Investigative": "#4ECDC4", 
-                    "Artistic": "#45B7D1",
-                    "Social": "#96CEB4",
-                    "Enterprising": "#FFEAA7",
-                    "Conventional": "#DDA0DD"
-                }
-                
-                # Sort by score for better visualization
-                sorted_scores = sorted(riasec_scores.items(), key=lambda x: x[1], reverse=True)
-                
-                for dimension, score in sorted_scores:
-                    # Create a progress bar with color
-                    color = colors.get(dimension, "#6C757D")
-                    
-                    # Calculate percentage for progress bar
-                    percentage = (score - 1) / 6 * 100
-                    
-                    # Create the progress bar
-                    st.markdown(f"""
-                    <div style="margin: 10px 0;">
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                            <strong style="color: {color};">{dimension}</strong>
-                            <span style="font-weight: bold;">{score}/7</span>
-                        </div>
-                        <div style="background: #f0f0f0; border-radius: 10px; height: 20px; overflow: hidden;">
-                            <div style="background: {color}; height: 100%; width: {percentage}%; border-radius: 10px; transition: width 0.3s ease;"></div>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-            
-            with col2:
-                # Show top 2 dimensions
-                top_dimensions = sorted_scores[:2]
-                st.markdown("#### 🎯 Your Top Interests")
-                for i, (dimension, score) in enumerate(top_dimensions, 1):
-                    color = colors.get(dimension, "#6C757D")
-                    st.markdown(f"""
-                    <div style="background: {color}20; padding: 10px; border-radius: 8px; margin: 5px 0; border-left: 4px solid {color};">
-                        <strong style="color: {color};">#{i} {dimension}</strong><br>
-                        <small>Score: {score}/7</small>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-        # 3. Generate and display recommendations
-        with st.spinner("Generating your personalized recommendations..."):
-            recommendations = advisor.generate_career_advice(
-                selected_division=selected_division,
-                school=user_school,
-                citizenship=user_citizenship,
-                income=user_income,
-                user_goals=user_goals,
-                user_tech_skills=user_tech_skills,
-                work_env=work_env,
-                research_interests=research_interests,
-                desired_industry=desired_industry,
-                work_life_balance=work_life_balance,
-                mentorship_preference=mentorship_preference,
-                cohort_stage=cohort_stage,
-                family_location="",
-                skill_levels=skill_levels,
-                job_function=job_function,
-                financial_scholarships=financial_scholarships,
-                funding=funding,
-                desirability=desirability,
-                user_riasec=riasec_scores
-            )
-            if recommendations:
-                st.markdown("### 📋 Your Personalized Career Recommendations")
-                st.markdown("*Generated based on your profile and NYU data*")
-                
-                # Create a beautiful recommendations container
+                # Create the progress bar
                 st.markdown(f"""
-                <div style='background:white; border:2px solid #57068c; border-radius:12px; padding:25px; margin:20px 0; box-shadow:0 4px 12px rgba(87,6,140,0.1);'>
-                    {recommendations}
+                <div style="margin: 10px 0;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                        <strong style="color: {color};">{dimension}</strong>
+                        <span style="font-weight: bold;">{score}/7</span>
+                    </div>
+                    <div style="background: #f0f0f0; border-radius: 10px; height: 20px; overflow: hidden;">
+                        <div style="background: {color}; height: 100%; width: {percentage}%; border-radius: 10px; transition: width 0.3s ease;"></div>
+                    </div>
                 </div>
                 """, unsafe_allow_html=True)
-                
-                # Recommendations generated successfully
+        
+        with col2:
+            # Show top 2 dimensions
+            top_dimensions = sorted_scores[:2]
+            st.markdown("#### 🎯 Your Top Interests")
+            for i, (dimension, score) in enumerate(top_dimensions, 1):
+                color = colors.get(dimension, "#6C757D")
+                st.markdown(f"""
+                <div style="background: {color}20; padding: 10px; border-radius: 8px; margin: 5px 0; border-left: 4px solid {color};">
+                    <strong style="color: {color};">#{i} {dimension}</strong><br>
+                    <small>Score: {score}/7</small>
+                </div>
+                """, unsafe_allow_html=True)
 
-                # --- Feedback section: only show after recommendations ---
-                st.markdown("<h3 style='margin-top: 30px;'> Feedback</h3>", unsafe_allow_html=True)
-                st.markdown("We'd love to hear from you. Your feedback helps us improve future recommendations!")
-
-                # Simple feedback form without session state
-                feedback = st.radio(
-                    "Did you find these career recommendations helpful?",
-                    ["Yes", "Somewhat", "No"],
-                    horizontal=True
-                )
-
-                feedback_comments = st.text_area(
-                    "Additional Comments (optional)",
-                    placeholder="What could be improved? Any specific feedback is helpful."
-                )
-
-                # Only show the multiselect if "No" is selected
-                if feedback == "No":
-                    feedback_issues = st.multiselect(
-                        "What didn't work well? (Select all that apply)",
-                        [
-                            "Not relevant to my goals",
-                            "Too generic / vague",
-                            "Didn't use my data effectively",
-                            "Too academic / not practical",
-                            "Wrong assumptions made",
-                            "Formatting / structure",
-                            "Missing key suggestions",
-                            "Other"
-                        ],
-                        help="Choose all that apply"
-                    )
-
-                if st.button("Submit Feedback"):
-                    st.success("✅ Thanks for your feedback!")
-            else:
-                st.warning("No recommendations could be generated. Please check your inputs.")
+        # 3. Quick recommendations based on sector
+        st.markdown("### 💡 Career Recommendations")
+        
+        if predicted_sector == "Academic":
+            st.markdown("""
+            **For Academic Careers:**
+            • Focus on publishing in top journals
+            • Build strong teaching portfolio
+            • Network at academic conferences
+            • Consider postdoc positions
+            • Develop research collaborations
+            • Apply for research grants
+            • Build relationships with faculty mentors
+            """)
+        elif predicted_sector == "Industry":
+            st.markdown("""
+            **For Industry Careers:**
+            • Develop technical skills (Python, R, etc.)
+            • Build portfolio of projects
+            • Network on LinkedIn
+            • Consider internships during PhD
+            • Learn industry tools and platforms
+            • Attend industry conferences
+            • Build relationships with alumni in industry
+            """)
+        elif predicted_sector == "Government":
+            st.markdown("""
+            **For Government Careers:**
+            • Look into federal fellowship programs
+            • Develop policy analysis skills
+            • Network at government events
+            • Consider research agencies (NIH, NSF, etc.)
+            • Learn about government hiring processes
+            • Build policy research experience
+            • Consider state/local government opportunities
+            """)
+        else:
+            st.markdown("""
+            **For Non-profit Careers:**
+            • Focus on social impact
+            • Develop grant writing skills
+            • Network in non-profit sector
+            • Consider research organizations
+            • Build community engagement skills
+            • Volunteer for relevant organizations
+            • Develop advocacy and communication skills
+            """)
+        
+        st.success("✅ Analysis complete! Recommendations generated successfully.")
 
     if handshake_events_df is not None and not handshake_events_df.empty:
         event_types = handshake_events_df['Event Type Name'].unique().tolist()
