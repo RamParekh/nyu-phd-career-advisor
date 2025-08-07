@@ -529,22 +529,33 @@ def ensure_model_loaded():
         return None
 
 def predict_sector_from_text(user_goals, desired_industry, work_env):
+    st.write("🔍 Debug: predict_sector_from_text called")
+    st.write(f"🔍 Debug: user_goals='{user_goals}', desired_industry='{desired_industry}', work_env='{work_env}'")
+    
     if not user_goals:
         st.warning("No user goals provided for sector prediction")
         return "Unknown"
     
     # Fallback prediction if ML libraries not available
     if not ML_AVAILABLE:
+        st.write("🔍 Debug: Using fallback prediction (ML not available)")
         text_input = f"{user_goals} {desired_industry} {work_env}".lower()
+        st.write(f"🔍 Debug: text_input='{text_input}'")
+        
         if any(word in text_input for word in ['academic', 'research', 'professor', 'university']):
+            st.write("🔍 Debug: Returning Academic")
             return "Academic"
         elif any(word in text_input for word in ['industry', 'company', 'business', 'corporate']):
+            st.write("🔍 Debug: Returning Industry")
             return "Industry"
         elif any(word in text_input for word in ['government', 'public', 'policy']):
+            st.write("🔍 Debug: Returning Government")
             return "Government"
         elif any(word in text_input for word in ['non-profit', 'ngo', 'charity']):
+            st.write("🔍 Debug: Returning Non-profit")
             return "Non-profit"
         else:
+            st.write("🔍 Debug: Returning Industry (default)")
             return "Industry"  # Default to industry
     
     # Load model fresh
@@ -2147,9 +2158,23 @@ def career_recommendations_tab(advisor):
     can_recommend = user_goals.strip() and user_tech_skills.strip()
     if not can_recommend:
         st.warning("Please provide at least your Career Goals and Soft Skills.")
+    
+    # Add a simple test button that always works
+    if st.button("🧪 Test Simple Recommendation"):
+        st.success("✅ Test button works!")
+        st.write("This confirms the button functionality is working.")
+    
     if st.button("Get Career Recommendations", disabled=not can_recommend):
+        st.success("🎉 Button clicked! Processing your request...")
+        st.write("🔍 Debug: Button clicked! Starting recommendation generation...")
+        
+        # Show immediate feedback
+        st.info("📊 Processing your career information...")
+        
         # 1. Predict sector using ML model and display
+        st.write("🔍 Debug: Predicting sector...")
         predicted_sector = predict_sector_from_text(user_goals, desired_industry, work_env)
+        st.write(f"🔍 Debug: Predicted sector: {predicted_sector}")
         sector_label = {
             "Academic": "Academia",
             "Industry": "Industry",
@@ -2712,6 +2737,7 @@ def main():
         
         # Debug info
         st.sidebar.write(f"📊 Data loaded: {len(df) if df is not None else 0} records")
+        st.sidebar.write(f"🔧 ML_AVAILABLE: {ML_AVAILABLE}")
         
         # Check if we're in deployment environment
         import os
