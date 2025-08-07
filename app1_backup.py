@@ -1,17 +1,24 @@
 import streamlit as st
-import openai, pandas as pd, requests, warnings, json
+import openai, pandas as pd, requests, warnings, json, traceback
 from datetime import datetime
-from sklearn.pipeline import Pipeline
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import cross_val_score
-from sklearn.metrics import accuracy_score, classification_report
-from sklearn.preprocessing import LabelEncoder
-from sklearn.svm import SVC
-from sklearn.linear_model import LogisticRegression
-from sklearn.naive_bayes import MultinomialNB
-import xgboost as xgb
-from sklearn.base import BaseEstimator, ClassifierMixin
+# Try to import ML libraries, with fallback for Python 3.13 compatibility
+try:
+    from sklearn.pipeline import Pipeline
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.model_selection import cross_val_score
+    from sklearn.metrics import accuracy_score, classification_report
+    from sklearn.preprocessing import LabelEncoder
+    from sklearn.svm import SVC
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.naive_bayes import MultinomialNB
+    import xgboost as xgb
+    from sklearn.base import BaseEstimator, ClassifierMixin
+    ML_AVAILABLE = True
+except ImportError as e:
+    st.warning(f"⚠️ Some ML libraries not available: {e}")
+    st.info("The app will work with basic features, but some advanced ML features may be limited.")
+    ML_AVAILABLE = False
 import numpy as np
 import uuid
 from textblob import TextBlob
@@ -522,9 +529,34 @@ def ensure_model_loaded():
         return None
 
 def predict_sector_from_text(user_goals, desired_industry, work_env):
+    st.write("🔍 Debug: predict_sector_from_text called")
+    st.write(f"🔍 Debug: user_goals='{user_goals}', desired_industry='{desired_industry}', work_env='{work_env}'")
+    
     if not user_goals:
         st.warning("No user goals provided for sector prediction")
         return "Unknown"
+    
+    # Fallback prediction if ML libraries not available
+    if not ML_AVAILABLE:
+        st.write("🔍 Debug: Using fallback prediction (ML not available)")
+        text_input = f"{user_goals} {desired_industry} {work_env}".lower()
+        st.write(f"🔍 Debug: text_input='{text_input}'")
+        
+        if any(word in text_input for word in ['academic', 'research', 'professor', 'university']):
+            st.write("🔍 Debug: Returning Academic")
+            return "Academic"
+        elif any(word in text_input for word in ['industry', 'company', 'business', 'corporate']):
+            st.write("🔍 Debug: Returning Industry")
+            return "Industry"
+        elif any(word in text_input for word in ['government', 'public', 'policy']):
+            st.write("🔍 Debug: Returning Government")
+            return "Government"
+        elif any(word in text_input for word in ['non-profit', 'ngo', 'charity']):
+            st.write("🔍 Debug: Returning Non-profit")
+            return "Non-profit"
+        else:
+            st.write("🔍 Debug: Returning Industry (default)")
+            return "Industry"  # Default to industry
     
     # Load model fresh
     text_sector_model = ensure_model_loaded()
@@ -1695,32 +1727,44 @@ def display_adzuna_jobs(job_data):
 class NYUCareerAdvisor:
     def __init__(self, df):
         self.df = df
+        self._cache = {}  # Simple cache for API responses
 
     def query_openai(self, messages, max_tokens=1000, temperature=0.5):
         if not use_openai:
             return "[OpenAI API call skipped for testing.]"
+        
+        # Create cache key from messages
+        cache_key = str(messages) + str(max_tokens) + str(temperature)
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+        
         try:
             # Add timeout to prevent hanging
             import time
             start_time = time.time()
-            timeout = 30  # 30 seconds timeout
             
-            response = openai.ChatCompletion.create(
+            # Use the new OpenAI API format with timeout
+            client = openai.OpenAI()
+            response = client.chat.completions.create(
                 model="gpt-4",
                 messages=messages,
                 max_tokens=max_tokens,
                 temperature=temperature,
-                timeout=timeout
+                timeout=15  # 15 second timeout for Streamlit Cloud
             )
             
             # Check if we're taking too long
-            if time.time() - start_time > 25:  # Warning at 25 seconds
+            if time.time() - start_time > 10:  # Warning at 10 seconds
                 st.warning("⚠️ API call is taking longer than expected...")
-                
-            return response.choices[0].message.content
+            
+            result = response.choices[0].message.content
+            # Cache the result
+            self._cache[cache_key] = result
+            return result
         except Exception as e:
             st.error(f"❌ Error querying OpenAI: {e}")
-            return None
+            # Return a fallback response instead of None
+            return "[OpenAI API call failed - using fallback data]"
 
     def summarize_text_column(self, series, sample_size=3):
         if not use_openai:
@@ -1767,31 +1811,19 @@ class NYUCareerAdvisor:
                 "Enterprising": 3,
                 "Conventional": 2
             }
+        
+        # Use a simpler, faster prompt for Streamlit Cloud
         prompt = f"""
-        You are a vocational psychologist. 
-        Based on the text below about the user's background and interests, 
-        estimate (roughly) how they score from 1 to 7 on each of the six RIASEC categories:
-        Realistic, Investigative, Artistic, Social, Enterprising, Conventional.
-        Return ONLY valid JSON with exactly these six keys: 
-        'Realistic', 'Investigative', 'Artistic', 'Social', 'Enterprising', 'Conventional'.
-        Example:
-        {{
-            "Realistic": 3,
-            "Investigative": 6,
-            "Artistic": 2,
-            "Social": 5,
-            "Enterprising": 4,
-            "Conventional": 2
-        }}
-        ---
-        {user_text}
-        ---
+        Based on this text, estimate RIASEC scores (1-7):
+        {user_text[:500]}  # Limit text length for speed
+        
+        Return JSON: {{"Realistic":3,"Investigative":5,"Artistic":2,"Social":4,"Enterprising":3,"Conventional":2}}
         """
         messages = [
-            {"role": "system", "content": "You are an expert in vocational interest classification."},
+            {"role": "system", "content": "Vocational psychologist. Return only JSON."},
             {"role": "user", "content": prompt}
         ]
-        raw = self.query_openai(messages, max_tokens=300)
+        raw = self.query_openai(messages, max_tokens=150)  # Reduced tokens for speed
         if not raw:
             return {}
         try:
@@ -1833,7 +1865,14 @@ class NYUCareerAdvisor:
         if self.df is None:
             return "No dataset loaded. Please upload an Excel file."
 
-        # Original logic
+        # Show progress
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        # Step 1: Filter data
+        status_text.text("🔍 Filtering data...")
+        progress_bar.progress(10)
+        
         filtered_df = self.df.copy()
         if "academic_division" in filtered_df.columns:
             if selected_division != "(No academic_division column)":
@@ -1841,10 +1880,15 @@ class NYUCareerAdvisor:
                 if filtered_df.empty:
                     return f"No rows found for academic_division = {selected_division}"
 
+        # Step 2: Quick data insights (no OpenAI calls)
+        status_text.text("📊 Analyzing data insights...")
+        progress_bar.progress(30)
+        
         data_insights = []
         all_columns = filtered_df.columns.tolist()
 
-        for col in all_columns:
+        # Limit to first 10 columns for speed
+        for col in all_columns[:10]:
             col_data = filtered_df[col].dropna()
             if col_data.empty:
                 continue
@@ -1852,17 +1896,18 @@ class NYUCareerAdvisor:
                 mean_val = col_data.mean()
                 data_insights.append(f"Column '{col}': average={round(mean_val, 2)}")
             else:
-                avg_len = col_data.astype(str).map(len).mean()
-                if avg_len > 40:
-                    summary = self.summarize_text_column(col_data, sample_size=3)
-                    data_insights.append(f"Column '{col}' (text summary): {summary}")
-                else:
-                    top_vals = col_data.value_counts().head(3).index.tolist()
-                    data_insights.append(f"Column '{col}' top responses: {top_vals}")
+                # Skip OpenAI summarization for speed - just show top values
+                top_vals = col_data.value_counts().head(3).index.tolist()
+                data_insights.append(f"Column '{col}' top responses: {top_vals}")
 
+        # Step 3: Quick relevant columns analysis
+        status_text.text("🎯 Finding relevant insights...")
+        progress_bar.progress(50)
+        
         relevant_cols = self.find_relevant_columns(self.df)
         relevant_summaries = []
-        for rcol in relevant_cols:
+        # Limit to first 5 relevant columns
+        for rcol in relevant_cols[:5]:
             rdata = self.df[rcol].dropna()
             if rdata.empty:
                 continue
@@ -1870,16 +1915,16 @@ class NYUCareerAdvisor:
                 mean_val = rdata.mean()
                 relevant_summaries.append(f"Relevant Column '{rcol}': average={round(mean_val, 2)}")
             else:
-                avg_len = rdata.astype(str).map(len).mean()
-                if avg_len > 40:
-                    summary = self.summarize_text_column(rdata, sample_size=2)
-                    relevant_summaries.append(f"Relevant Column '{rcol}' (text summary): {summary}")
-                else:
-                    top_vals = rdata.value_counts().head(2).index.tolist()
-                    relevant_summaries.append(f"Relevant Column '{rcol}' top: {top_vals}")
+                # Skip OpenAI summarization for speed
+                top_vals = rdata.value_counts().head(2).index.tolist()
+                relevant_summaries.append(f"Relevant Column '{rcol}' top: {top_vals}")
 
         relevant_cols_str = "\n".join(relevant_summaries) or "No additional relevant columns found."
 
+        # Step 4: Crucial factors analysis
+        status_text.text("⚡ Analyzing career factors...")
+        progress_bar.progress(70)
+        
         crucial_cols = [
             "Job Relatedness", "Salary", "Benefits", "Job security",
             "Job location", "Opportunity_for_advancement", "Intellectual_challenge",
@@ -1900,14 +1945,23 @@ class NYUCareerAdvisor:
                         factor_insights.append(f"{col}: top responses = {top_vals}")
         factor_insights_str = "\n".join(factor_insights) or "No crucial column data available in the filtered set."
 
+        # Step 5: Quick correlation analysis (limited)
+        status_text.text("📈 Calculating correlations...")
+        progress_bar.progress(85)
+        
         numeric_cols = filtered_df.select_dtypes(include=['int','float']).columns
         if len(numeric_cols) > 1:
+            # Limit to top 3 columns for speed
             stds = filtered_df[numeric_cols].std().abs().sort_values(ascending=False)
-            top_cols = stds.head(5).index
+            top_cols = stds.head(3).index
             corr_matrix = filtered_df[top_cols].corr().round(2)
             data_insights.append("Limited Correlation Matrix:\n" + corr_matrix.to_string())
 
         insights_str = "\n".join(data_insights) or "No data insights found after filtering."
+        
+        # Complete progress
+        progress_bar.progress(100)
+        status_text.text("✅ Analysis complete!")
 
         if not income.strip():
             income = "Approx. range from web sources: $60k–$80k"
@@ -2126,9 +2180,23 @@ def career_recommendations_tab(advisor):
     can_recommend = user_goals.strip() and user_tech_skills.strip()
     if not can_recommend:
         st.warning("Please provide at least your Career Goals and Soft Skills.")
+    
+    # Add a simple test button that always works
+    if st.button("🧪 Test Simple Recommendation"):
+        st.success("✅ Test button works!")
+        st.write("This confirms the button functionality is working.")
+    
     if st.button("Get Career Recommendations", disabled=not can_recommend):
+        st.success("🎉 Button clicked! Processing your request...")
+        st.write("🔍 Debug: Button clicked! Starting recommendation generation...")
+        
+        # Show immediate feedback
+        st.info("📊 Processing your career information...")
+        
         # 1. Predict sector using ML model and display
+        st.write("🔍 Debug: Predicting sector...")
         predicted_sector = predict_sector_from_text(user_goals, desired_industry, work_env)
+        st.write(f"🔍 Debug: Predicted sector: {predicted_sector}")
         sector_label = {
             "Academic": "Academia",
             "Industry": "Industry",
@@ -2167,8 +2235,20 @@ def career_recommendations_tab(advisor):
         with st.spinner("Analyzing your personality profile..."):
             riasec_scores = advisor.infer_riasec_scores_via_gpt(user_profile_text)
         
-        if riasec_scores:
-            # Create a beautiful RIASEC visualization
+        # Always show RIASEC visualization, with fallback if API fails
+        if not riasec_scores:
+            st.warning("⚠️ Could not analyze personality profile. Using default analysis.")
+            riasec_scores = {
+                "Realistic": 4,
+                "Investigative": 5,
+                "Artistic": 3,
+                "Social": 4,
+                "Enterprising": 3,
+                "Conventional": 2
+            }
+            st.markdown("### 🧠 Your RIASEC Personality Profile")
+            st.markdown("*Using default analysis*")
+        else:
             st.markdown("### 🧠 Your RIASEC Personality Profile")
             st.markdown("*Powered by GPT-4 Analysis*")
             
@@ -2257,8 +2337,6 @@ def career_recommendations_tab(advisor):
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
-        else:
-            # Fallback RIASEC scores if API fails
             st.warning("⚠️ Could not analyze personality profile. Using default analysis.")
             riasec_scores = {
                 "Realistic": 4,
@@ -2270,107 +2348,8 @@ def career_recommendations_tab(advisor):
             }
             st.markdown("### 🧠 Your RIASEC Personality Profile")
             st.markdown("*Using default analysis*")
-            
-            # Create columns for the visualization
-            col1, col2 = st.columns([2, 1])
-            
-            with col1:
-                # Create a radar chart-like visualization using bars
-                st.markdown("#### Your Interest Scores (1-7 Scale)")
-                
-                # Define colors for each dimension
-                colors = {
-                    "Realistic": "#FF6B6B",
-                    "Investigative": "#4ECDC4", 
-                    "Artistic": "#45B7D1",
-                    "Social": "#96CEB4",
-                    "Enterprising": "#FFEAA7",
-                    "Conventional": "#DDA0DD"
-                }
-                
-                # Sort by score for better visualization
-                sorted_scores = sorted(riasec_scores.items(), key=lambda x: x[1], reverse=True)
-                
-                for dimension, score in sorted_scores:
-                    # Create a progress bar with color
-                    color = colors.get(dimension, "#6C757D")
-                    
-                    # Calculate percentage for progress bar
-                    percentage = (score - 1) / 6 * 100
-                    
-                    # Create the progress bar
-                    st.markdown(f"""
-                    <div style="margin: 10px 0;">
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                            <strong style="color: {color};">{dimension}</strong>
-                            <span style="font-weight: bold;">{score}/7</span>
-                        </div>
-                        <div style="background: #f0f0f0; border-radius: 10px; height: 20px; overflow: hidden;">
-                            <div style="background: {color}; height: 100%; width: {percentage}%; border-radius: 10px; transition: width 0.3s ease;"></div>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-            
-            with col2:
-                # Show top 2 dimensions
-                top_dimensions = sorted_scores[:2]
-                st.markdown("#### 🎯 Your Top Interests")
-                for i, (dimension, score) in enumerate(top_dimensions, 1):
-                    color = colors.get(dimension, "#6C757D")
-                    st.markdown(f"""
-                    <div style="background: {color}20; padding: 10px; border-radius: 8px; margin: 5px 0; border-left: 4px solid {color};">
-                        <strong style="color: {color};">#{i} {dimension}</strong><br>
-                        <small>Score: {score}/7</small>
-                    </div>
-                    """, unsafe_allow_html=True)
-            
-            # RIASEC explanation in an expander
-            with st.expander("📚 What is RIASEC?", expanded=False):
-                st.markdown("""
-                **RIASEC** is a vocational interest theory that categorizes people into six personality types:
-                
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 15px 0;">
-                    <div style="background: #FF6B6B20; padding: 15px; border-radius: 8px; border-left: 4px solid #FF6B6B;">
-                        <strong style="color: #FF6B6B;">🔧 Realistic (R)</strong><br>
-                        <small>Practical, hands-on, technical. Prefers working with things, machines, tools, or outdoor activities.</small>
-                    </div>
-                    <div style="background: #4ECDC420; padding: 15px; border-radius: 8px; border-left: 4px solid #4ECDC4;">
-                        <strong style="color: #4ECDC4;">🔬 Investigative (I)</strong><br>
-                        <small>Analytical, intellectual, scientific. Enjoys research, problem-solving, and complex thinking.</small>
-                    </div>
-                    <div style="background: #45B7D120; padding: 15px; border-radius: 8px; border-left: 4px solid #45B7D1;">
-                        <strong style="color: #45B7D1;">🎨 Artistic (A)</strong><br>
-                        <small>Creative, expressive, innovative. Prefers unstructured work, design, and self-expression.</small>
-                    </div>
-                    <div style="background: #96CEB420; padding: 15px; border-radius: 8px; border-left: 4px solid #96CEB4;">
-                        <strong style="color: #96CEB4;">🤝 Social (S)</strong><br>
-                        <small>Cooperative, supportive, helpful. Enjoys working with people, teaching, and helping others.</small>
-                    </div>
-                    <div style="background: #FFEAA720; padding: 15px; border-radius: 8px; border-left: 4px solid #FFEAA7;">
-                        <strong style="color: #FFEAA7;">💼 Enterprising (E)</strong><br>
-                        <small>Persuasive, leadership, competitive. Enjoys leading, selling, and starting projects.</small>
-                    </div>
-                    <div style="background: #DDA0DD20; padding: 15px; border-radius: 8px; border-left: 4px solid #DDA0DD;">
-                        <strong style="color: #DDA0DD;">📊 Conventional (C)</strong><br>
-                        <small>Organized, detail-oriented, systematic. Prefers structured tasks and data management.</small>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-        else:
-            # Fallback RIASEC scores if API fails
-            st.warning("⚠️ Could not analyze personality profile. Using default analysis.")
-            riasec_scores = {
-                "Realistic": 4,
-                "Investigative": 5,
-                "Artistic": 3,
-                "Social": 4,
-                "Enterprising": 3,
-                "Conventional": 2
-            }
-            st.markdown("### 🧠 Your RIASEC Personality Profile")
-            st.markdown("*Using default analysis*")
-            
-            # Create columns for the visualization
+        
+        # Create columns for the visualization (shared between if and else)
             col1, col2 = st.columns([2, 1])
             
             with col1:
@@ -2774,12 +2753,46 @@ def job_postings_tab():
 # Main
 # ----------------------------------------------------------------------------
 def main():
-    advisor = NYUCareerAdvisor(df)
-    tab1, tab2 = st.tabs(["Career Recommendations", "Job Postings"])
-    with tab1:
-        career_recommendations_tab(advisor)
-    with tab2:
-        job_postings_tab()
+    try:
+        st.title("🎓 NYU PhD Career Advisor")
+        st.write("Welcome! Let's help you find your career path.")
+        
+        # Debug info
+        st.sidebar.write(f"📊 Data loaded: {len(df) if df is not None else 0} records")
+        st.sidebar.write(f"🔧 ML_AVAILABLE: {ML_AVAILABLE}")
+        
+        # Check if we're in deployment environment
+        import os
+        if os.path.exists("/mount/src"):
+            st.sidebar.info("🌐 Running on Streamlit Cloud")
+        else:
+            st.sidebar.info("💻 Running locally")
+        
+        # Show data file status
+        data_files = [
+            "data/imputed_data_NYU copy 3.xlsx",
+            "data/Events for Graduate Students.csv",
+            "data/sentiment analysis- Final combined .xlsx",
+            "data/phd_career_sector_training_data_final_1200.xlsx"
+        ]
+        
+        st.sidebar.write("📁 Data files:")
+        for file_path in data_files:
+            if os.path.exists(file_path):
+                st.sidebar.write(f"✅ {os.path.basename(file_path)}")
+            else:
+                st.sidebar.write(f"❌ {os.path.basename(file_path)}")
+        
+        advisor = NYUCareerAdvisor(df)
+        tab1, tab2 = st.tabs(["Career Recommendations", "Job Postings"])
+        with tab1:
+            career_recommendations_tab(advisor)
+        with tab2:
+            job_postings_tab()
+    except Exception as e:
+        st.error(f"🚨 App Error: {e}")
+        st.code(traceback.format_exc())
+        st.info("Please check the logs for more details.")
 
 # Load Handshake events from local file
 handshake_events_df = load_handshake_events()
@@ -2855,9 +2868,33 @@ CUSTOM_VADER_LEXICON = {
     'good luck with that': -2.0, 'i bet': -1.0,
 }
 
-# Check data files on startup
-if not check_data_files():
-    st.error("Please ensure all required data files are present in the 'data' folder.")
+# Load data globally with better error handling
+try:
+    st.info("🔄 Loading data...")
+    all_data = load_data_once()
+    df = all_data.get('nyu_data', None)
+    handshake_events_df = all_data.get('handshake_events', pd.DataFrame())
+    sentiment_df = all_data.get('sentiment_data', None)
+    
+    if df is None:
+        st.error("❌ Could not load NYU career data.")
+        st.info("📋 Trying alternative loading method...")
+        
+        # Try direct file loading as fallback
+        try:
+            df = pd.read_excel("data/imputed_data_NYU copy 3.xlsx")
+            st.success(f"✅ Data loaded via fallback: {len(df)} records")
+        except Exception as fallback_error:
+            st.error(f"❌ Fallback loading also failed: {fallback_error}")
+            st.info("📋 Please check if data files are in the repository.")
+            st.stop()
+    else:
+        st.success(f"✅ Data loaded successfully: {len(df)} records")
+        
+except Exception as e:
+    st.error(f"🚨 Error loading data: {e}")
+    st.info("📋 This might be a deployment environment issue.")
+    st.code(traceback.format_exc())
     st.stop()
 
 if __name__ == "__main__":
