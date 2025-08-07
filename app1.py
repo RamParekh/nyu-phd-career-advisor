@@ -1066,8 +1066,8 @@ def sarcasm_macro_count(df):
     """Simple function that returns 0 for sarcasm count (disabled)."""
     return 0, 0.0
 
-# Evaluate model performance
-model_evaluation = evaluate_sentiment_models(sentiment_df) if sentiment_df is not None else None
+# Evaluate model performance (temporarily disabled to fix sentiment scores)
+model_evaluation = None
 
 # ADD THE FUNCTION DEFINITIONS HERE (before they're called)
 def extract_theme_sentiments(df, themes):
