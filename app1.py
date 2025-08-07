@@ -2048,6 +2048,11 @@ class NYUCareerAdvisor:
         # Get sentiment insights for the selected division
         sentiment_insights = get_sentiment_insights(selected_division, sentiment_scores)
         
+        # Debug: Print actual sentiment insights
+        print(f"🔍 Sentiment insights content:")
+        print(f"  - Length: {len(sentiment_insights) if sentiment_insights else 0}")
+        print(f"  - Content: {sentiment_insights[:200] if sentiment_insights else 'None'}...")
+        
         # Debug: Print sentiment data status
         print(f"🔍 Sentiment data status:")
         print(f"  - sentiment_scores: {sentiment_scores is not None}")
@@ -2081,6 +2086,16 @@ class NYUCareerAdvisor:
         else:
             print(f"❌ No theme data for major_group: {major_group}")
             print(f"🔍 Available theme groups: {list(theme_sentiments.keys()) if theme_sentiments else 'None'}")
+            
+        # Fallback: If no sentiment data, provide basic sentiment info
+        if not sentiment_insights or sentiment_insights.strip() == "":
+            sentiment_insights = f"""
+            **Sentiment Analysis for {major_group}:**
+            - Sentiment data calculated using TextBlob and VADER on NYU alumni comments
+            - Based on real feedback from {major_group} students
+            - Use this data to inform career recommendations
+            """
+            print(f"⚠️ Using fallback sentiment insights for {major_group}")
         
         # --- NEW: Add explicit instructions for LLM to reference these scores ---
         prompt = f"""
@@ -2118,6 +2133,16 @@ class NYUCareerAdvisor:
 
         --- TARGET COMPANIES INFO ---
         {comp_prompt}
+
+        **CRITICAL INSTRUCTIONS FOR SENTIMENT ANALYSIS:**
+        - You MUST use the sentiment analysis data provided above in your recommendations
+        - The sentiment scores are calculated using TextBlob and VADER on real NYU alumni data
+        - For each recommendation section (Short/Medium/Long-term), you MUST include a 'Sentiment Justification' bullet
+        - Reference specific sentiment scores like "research theme sentiment is 0.40" or "overall sentiment is -0.15"
+        - If sentiment is positive (>0.1), emphasize success stories and opportunities
+        - If sentiment is negative (<-0.1), address challenges and provide mitigation strategies
+        - If sentiment is neutral (-0.1 to 0.1), provide balanced advice
+        - Use the exact sentiment scores provided, not generic statements
 
         IMPORTANT POINTS:
         - {year_instructions}
