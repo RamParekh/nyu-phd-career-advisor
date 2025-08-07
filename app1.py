@@ -1271,6 +1271,7 @@ def get_sentiment_insights(selected_division, sentiment_scores):
     major_group = map_division_to_major_group(selected_division)
     print(f"🔍 Division '{selected_division}' mapped to major group: '{major_group}'")
     print(f"🔍 Available sentiment groups: {list(sentiment_scores.keys()) if sentiment_scores else 'None'}")
+    print(f"🔍 Sentiment scores content: {sentiment_scores}")
     
     # Check if the mapped group exists in sentiment data
     if major_group in sentiment_scores:
