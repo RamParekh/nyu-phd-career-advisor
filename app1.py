@@ -2047,6 +2047,16 @@ class NYUCareerAdvisor:
 
         # Get sentiment insights for the selected division
         sentiment_insights = get_sentiment_insights(selected_division, sentiment_scores)
+        
+        # Debug: Print sentiment data status
+        print(f"🔍 Sentiment data status:")
+        print(f"  - sentiment_scores: {sentiment_scores is not None}")
+        print(f"  - theme_sentiments: {theme_sentiments is not None}")
+        print(f"  - processed_sentiment_df: {processed_sentiment_df is not None}")
+        if sentiment_scores:
+            print(f"  - Available groups: {list(sentiment_scores.keys())}")
+        if theme_sentiments:
+            print(f"  - Available theme groups: {list(theme_sentiments.keys())}")
 
         # Get thematic insights for the selected division
         thematic_insights = get_theme_insights_for_division(selected_division, theme_sentiments, processed_sentiment_df)
@@ -2067,6 +2077,10 @@ class NYUCareerAdvisor:
                     f"- Most Positive: '{top_theme.title()}' ({top_data['average_sentiment']:.2f}) with {top_data['comment_count']} comments.\n"
                     f"- Most Negative: '{bottom_theme.title()}' ({bottom_data['average_sentiment']:.2f}) with {bottom_data['comment_count']} comments.\n"
                 )
+                print(f"🔍 Key theme summary: {key_theme_summary}")
+        else:
+            print(f"❌ No theme data for major_group: {major_group}")
+            print(f"🔍 Available theme groups: {list(theme_sentiments.keys()) if theme_sentiments else 'None'}")
         
         # --- NEW: Add explicit instructions for LLM to reference these scores ---
         prompt = f"""
