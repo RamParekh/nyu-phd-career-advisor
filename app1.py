@@ -1944,25 +1944,8 @@ class NYUCareerAdvisor:
             data_insights.append("Limited Correlation Matrix:\n" + corr_matrix.to_string())
 
         insights_str = "\n".join(data_insights) or "No data insights found after filtering."
-            if col in filtered_df.columns:
-                col_data = filtered_df[col].dropna()
-                if not col_data.empty:
-                    if pd.api.types.is_numeric_dtype(col_data):
-                        avg_val = round(col_data.mean(), 2)
-                        factor_insights.append(f"{col}: average rating = {avg_val}")
-                    else:
-                        top_vals = col_data.value_counts().head(1).index.tolist()  # Reduced from 2
-                        factor_insights.append(f"{col}: top responses = {top_vals}")
-        factor_insights_str = "\n".join(factor_insights) or "No crucial column data available in the filtered set."
 
-        # Step 5: Skip correlation analysis for speed
-        status_text.text("📈 Finalizing analysis...")
-        progress_bar.progress(85)
 
-        insights_str = "\n".join(data_insights) or "No data insights found after filtering."
-        
-        # Complete progress
-        progress_bar.progress(100)
 
         if not income.strip():
             income = "Approx. range from web sources: $60k–$80k"
