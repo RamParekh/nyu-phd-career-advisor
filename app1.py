@@ -2713,6 +2713,28 @@ def main():
         # Debug info
         st.sidebar.write(f"📊 Data loaded: {len(df) if df is not None else 0} records")
         
+        # Check if we're in deployment environment
+        import os
+        if os.path.exists("/mount/src"):
+            st.sidebar.info("🌐 Running on Streamlit Cloud")
+        else:
+            st.sidebar.info("💻 Running locally")
+        
+        # Show data file status
+        data_files = [
+            "data/imputed_data_NYU copy 3.xlsx",
+            "data/Events for Graduate Students.csv",
+            "data/sentiment analysis- Final combined .xlsx",
+            "data/phd_career_sector_training_data_final_1200.xlsx"
+        ]
+        
+        st.sidebar.write("📁 Data files:")
+        for file_path in data_files:
+            if os.path.exists(file_path):
+                st.sidebar.write(f"✅ {os.path.basename(file_path)}")
+            else:
+                st.sidebar.write(f"❌ {os.path.basename(file_path)}")
+        
         advisor = NYUCareerAdvisor(df)
         tab1, tab2 = st.tabs(["Career Recommendations", "Job Postings"])
         with tab1:
@@ -2798,22 +2820,32 @@ CUSTOM_VADER_LEXICON = {
     'good luck with that': -2.0, 'i bet': -1.0,
 }
 
-# Load data globally
+# Load data globally with better error handling
 try:
+    st.info("🔄 Loading data...")
     all_data = load_data_once()
     df = all_data.get('nyu_data', None)
     handshake_events_df = all_data.get('handshake_events', pd.DataFrame())
     sentiment_df = all_data.get('sentiment_data', None)
     
     if df is None:
-        st.error("❌ Could not load NYU career data. Please check your data files.")
-        st.info("📋 Make sure the data files are in the 'data' folder.")
-        st.stop()
+        st.error("❌ Could not load NYU career data.")
+        st.info("📋 Trying alternative loading method...")
+        
+        # Try direct file loading as fallback
+        try:
+            df = pd.read_excel("data/imputed_data_NYU copy 3.xlsx")
+            st.success(f"✅ Data loaded via fallback: {len(df)} records")
+        except Exception as fallback_error:
+            st.error(f"❌ Fallback loading also failed: {fallback_error}")
+            st.info("📋 Please check if data files are in the repository.")
+            st.stop()
     else:
         st.success(f"✅ Data loaded successfully: {len(df)} records")
         
 except Exception as e:
     st.error(f"🚨 Error loading data: {e}")
+    st.info("📋 This might be a deployment environment issue.")
     st.code(traceback.format_exc())
     st.stop()
 
