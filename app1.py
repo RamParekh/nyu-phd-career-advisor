@@ -638,15 +638,13 @@ def load_local_data():
                 loaded_data['handshake_events'] = events_df
                 print(f"✅ Loaded {len(events_df)} Handshake events from secrets")
             
-            # Load sentiment data from base64
-            if 'sentiment_data' in st.secrets['data_files']:
-                import base64
-                import io
-                sentiment_data_b64 = st.secrets['data_files']['sentiment_data']
-                sentiment_data_bytes = base64.b64decode(sentiment_data_b64)
-                sentiment_df = pd.read_excel(io.BytesIO(sentiment_data_bytes))
+            # Load sentiment data from local file (keep as Excel for sentiment models)
+            try:
+                sentiment_df = pd.read_excel("data/sentiment analysis- Final combined .xlsx")
                 loaded_data['sentiment_data'] = sentiment_df
-                print(f"✅ Loaded {len(sentiment_df)} sentiment records from secrets")
+                print(f"✅ Loaded {len(sentiment_df)} sentiment records from local Excel file")
+            except Exception as e:
+                print(f"❌ Error loading sentiment data: {e}")
             
             # Load training data from base64
             if 'training_data' in st.secrets['data_files']:
@@ -745,18 +743,10 @@ def load_handshake_events():
         return pd.DataFrame()
 
 def load_sentiment_data():
-    """Load sentiment analysis data from secrets or local file."""
+    """Load sentiment analysis data from local Excel file (keep original format for sentiment models)."""
     try:
-        # Try to load from secrets first
-        if 'data_files' in st.secrets and 'sentiment_data' in st.secrets['data_files']:
-            import base64
-            import io
-            sentiment_data_b64 = st.secrets['data_files']['sentiment_data']
-            sentiment_data_bytes = base64.b64decode(sentiment_data_b64)
-            df = pd.read_excel(io.BytesIO(sentiment_data_bytes))
-        else:
-            # Fallback to local file
-            df = pd.read_excel("data/sentiment analysis- Final combined .xlsx")
+        # Always load from local Excel file for sentiment analysis
+        df = pd.read_excel("data/sentiment analysis- Final combined .xlsx")
         return df
     except Exception as e:
         st.error(f"Error loading sentiment data: {e}")
