@@ -854,11 +854,8 @@ def calculate_sentiment_with_multiple_models(text):
         tb_score = -0.2
         results['TextBlob'] = tb_score
 
-    # Weighted ensemble - use all scores, even small ones
-    if abs(results['VADER']) > 0.001 or abs(tb_score) > 0.001:
-        results['Ensemble'] = vader_weight * results['VADER'] + tb_weight * tb_score
-    else:
-        results['Ensemble'] = 0.0
+    # Weighted ensemble - always calculate ensemble score
+    results['Ensemble'] = vader_weight * results['VADER'] + tb_weight * tb_score
 
     # If both models are neutral but sarcasm cues, nudge negative
     if sarcasm and abs(results['Ensemble']) < 0.05:
@@ -1046,15 +1043,21 @@ def calculate_sentiment_scores(sentiment_df):
     
     # Calculate sentiment scores using ensemble model
     sentiment_scores = []
-    for comment in df_copy['Comments']:
+    for i, comment in enumerate(df_copy['Comments']):
         try:
             if pd.isna(comment) or str(comment).strip() == '':
                 sentiment_scores.append(0.0)
             else:
                 # Use ensemble model for better accuracy
                 ensemble_result = calculate_sentiment_with_multiple_models(comment)
-                sentiment_scores.append(ensemble_result['Ensemble'])
-        except:
+                sentiment_score = ensemble_result['Ensemble']
+                sentiment_scores.append(sentiment_score)
+                
+                # Debug: Print first 5 sentiment calculations
+                if i < 5:
+                    print(f"🔍 Comment {i+1}: '{str(comment)[:50]}...' -> Sentiment: {sentiment_score:.3f}")
+        except Exception as e:
+            print(f"❌ Error calculating sentiment for comment {i+1}: {e}")
             sentiment_scores.append(0.0)
     
     # Ensure the length matches
@@ -2392,7 +2395,7 @@ def career_recommendations_tab(advisor):
                 # Create a beautiful recommendations container
                 st.markdown(f"""
                 <div style='background:white; border:2px solid #57068c; border-radius:12px; padding:25px; margin:20px 0; box-shadow:0 4px 12px rgba(87,6,140,0.1);'>
-                    {recommendations}
+                    {recommendations.replace('</div>', '')}
                 </div>
                 """, unsafe_allow_html=True)
                 
