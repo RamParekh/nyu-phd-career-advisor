@@ -2080,6 +2080,7 @@ class NYUCareerAdvisor:
         print(f"🔍 Sentiment insights content:")
         print(f"  - Length: {len(sentiment_insights) if sentiment_insights else 0}")
         print(f"  - Content: {sentiment_insights[:200] if sentiment_insights else 'None'}...")
+        print(f"  - Full content: {sentiment_insights}")
         
         # Debug: Print sentiment data status
         print(f"🔍 Sentiment data status:")
