@@ -1735,14 +1735,14 @@ class NYUCareerAdvisor:
             # Add timeout to prevent hanging
             import time
             start_time = time.time()
-            timeout = 30  # 30 seconds timeout
             
-            response = openai.ChatCompletion.create(
+            # Use the new OpenAI API format
+            client = openai.OpenAI()
+            response = client.chat.completions.create(
                 model="gpt-4",
                 messages=messages,
                 max_tokens=max_tokens,
-                temperature=temperature,
-                timeout=timeout
+                temperature=temperature
             )
             
             # Check if we're taking too long
