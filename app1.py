@@ -69,8 +69,13 @@ except:
     ADZUNA_APP_ID = os.getenv("ADZUNA_APP_ID", "your-adzuna-app-id-here")
     ADZUNA_APP_KEY = os.getenv("ADZUNA_APP_KEY", "your-adzuna-app-key-here")
 
-# Change the sidebar checkbox label
-use_openai = st.sidebar.checkbox("For Career recommendation", value=False)
+# API Key input for testing
+api_key_input = st.sidebar.text_input("OpenAI API Key (for testing)", type="password", help="Enter your OpenAI API key to enable personalized recommendations")
+if api_key_input and api_key_input != "your-openai-api-key-here":
+    openai.api_key = api_key_input
+    use_openai = True
+else:
+    use_openai = st.sidebar.checkbox("For Career recommendation", value=False)
 
 # Show VADER warning if not available
 if not VADER_AVAILABLE:
