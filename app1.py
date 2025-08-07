@@ -529,33 +529,23 @@ def ensure_model_loaded():
         return None
 
 def predict_sector_from_text(user_goals, desired_industry, work_env):
-    st.write("🔍 Debug: predict_sector_from_text called")
-    st.write(f"🔍 Debug: user_goals='{user_goals}', desired_industry='{desired_industry}', work_env='{work_env}'")
-    
     if not user_goals:
         st.warning("No user goals provided for sector prediction")
         return "Unknown"
     
     # Fallback prediction if ML libraries not available
     if not ML_AVAILABLE:
-        st.write("🔍 Debug: Using fallback prediction (ML not available)")
         text_input = f"{user_goals} {desired_industry} {work_env}".lower()
-        st.write(f"🔍 Debug: text_input='{text_input}'")
         
         if any(word in text_input for word in ['academic', 'research', 'professor', 'university']):
-            st.write("🔍 Debug: Returning Academic")
             return "Academic"
         elif any(word in text_input for word in ['industry', 'company', 'business', 'corporate']):
-            st.write("🔍 Debug: Returning Industry")
             return "Industry"
         elif any(word in text_input for word in ['government', 'public', 'policy']):
-            st.write("🔍 Debug: Returning Government")
             return "Government"
         elif any(word in text_input for word in ['non-profit', 'ngo', 'charity']):
-            st.write("🔍 Debug: Returning Non-profit")
             return "Non-profit"
         else:
-            st.write("🔍 Debug: Returning Industry (default)")
             return "Industry"  # Default to industry
     
     # Load model fresh
@@ -1954,7 +1944,6 @@ class NYUCareerAdvisor:
         
         # Complete progress
         progress_bar.progress(100)
-        status_text.text("✅ Analysis complete!")
 
         if not income.strip():
             income = "Approx. range from web sources: $60k–$80k"
