@@ -1040,8 +1040,9 @@ def calculate_sentiment_scores(sentiment_df):
     # Create a copy to avoid modifying the original
     df_copy = sentiment_df.copy()
     
-    # Add major group mapping
-    df_copy['Major_Group'] = df_copy['Academic_Division'].apply(map_division_to_major_group)
+    # The Academic_Division column already contains the major groups
+    # Just use it directly as Major_Group
+    df_copy['Major_Group'] = df_copy['Academic_Division']
     
     # Calculate sentiment scores using ensemble model
     sentiment_scores = []
@@ -1076,6 +1077,9 @@ def calculate_sentiment_scores(sentiment_df):
                 'comment_count': count,
                 'sentiment_range': (group_data['Sentiment_Score'].min(), group_data['Sentiment_Score'].max())
             }
+            print(f"🔍 {group}: {count} comments, avg sentiment: {avg_sentiment:.3f}, range: {group_data['Sentiment_Score'].min():.3f} to {group_data['Sentiment_Score'].max():.3f}")
+        else:
+            print(f"⚠️ No data found for group: {group}")
     
     return group_sentiments, df_copy
 
@@ -1268,6 +1272,7 @@ def get_sentiment_insights(selected_division, sentiment_scores):
     print(f"🔍 Division '{selected_division}' mapped to major group: '{major_group}'")
     print(f"🔍 Available sentiment groups: {list(sentiment_scores.keys()) if sentiment_scores else 'None'}")
     
+    # Check if the mapped group exists in sentiment data
     if major_group in sentiment_scores:
         sentiment_data = sentiment_scores[major_group]
         avg_sentiment = sentiment_data['average_sentiment']
