@@ -1869,14 +1869,7 @@ class NYUCareerAdvisor:
         if self.df is None:
             return "No dataset loaded. Please upload an Excel file."
 
-        # Show progress
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        
-        # Step 1: Filter data
-        status_text.text("🔍 Filtering data...")
-        progress_bar.progress(10)
-        
+        # Original comprehensive logic
         filtered_df = self.df.copy()
         if "academic_division" in filtered_df.columns:
             if selected_division != "(No academic_division column)":
@@ -1884,15 +1877,10 @@ class NYUCareerAdvisor:
                 if filtered_df.empty:
                     return f"No rows found for academic_division = {selected_division}"
 
-        # Step 2: Quick data insights (no OpenAI calls)
-        status_text.text("📊 Analyzing data insights...")
-        progress_bar.progress(30)
-        
         data_insights = []
         all_columns = filtered_df.columns.tolist()
 
-        # Limit to first 5 columns for speed (reduced from 10)
-        for col in all_columns[:5]:
+        for col in all_columns:
             col_data = filtered_df[col].dropna()
             if col_data.empty:
                 continue
@@ -1900,18 +1888,17 @@ class NYUCareerAdvisor:
                 mean_val = col_data.mean()
                 data_insights.append(f"Column '{col}': average={round(mean_val, 2)}")
             else:
-                # Skip OpenAI summarization for speed - just show top values
-                top_vals = col_data.value_counts().head(2).index.tolist()  # Reduced from 3
-                data_insights.append(f"Column '{col}' top responses: {top_vals}")
+                avg_len = col_data.astype(str).map(len).mean()
+                if avg_len > 40:
+                    summary = self.summarize_text_column(col_data, sample_size=3)
+                    data_insights.append(f"Column '{col}' (text summary): {summary}")
+                else:
+                    top_vals = col_data.value_counts().head(3).index.tolist()
+                    data_insights.append(f"Column '{col}' top responses: {top_vals}")
 
-        # Step 3: Quick relevant columns analysis
-        status_text.text("🎯 Finding relevant insights...")
-        progress_bar.progress(50)
-        
         relevant_cols = self.find_relevant_columns(self.df)
         relevant_summaries = []
-        # Limit to first 3 relevant columns (reduced from 5)
-        for rcol in relevant_cols[:3]:
+        for rcol in relevant_cols:
             rdata = self.df[rcol].dropna()
             if rdata.empty:
                 continue
@@ -1919,16 +1906,16 @@ class NYUCareerAdvisor:
                 mean_val = rdata.mean()
                 relevant_summaries.append(f"Relevant Column '{rcol}': average={round(mean_val, 2)}")
             else:
-                # Skip OpenAI summarization for speed
-                top_vals = rdata.value_counts().head(1).index.tolist()  # Reduced from 2
-                relevant_summaries.append(f"Relevant Column '{rcol}' top: {top_vals}")
+                avg_len = rdata.astype(str).map(len).mean()
+                if avg_len > 40:
+                    summary = self.summarize_text_column(rdata, sample_size=2)
+                    relevant_summaries.append(f"Relevant Column '{rcol}' (text summary): {summary}")
+                else:
+                    top_vals = rdata.value_counts().head(2).index.tolist()
+                    relevant_summaries.append(f"Relevant Column '{rcol}' top: {top_vals}")
 
         relevant_cols_str = "\n".join(relevant_summaries) or "No additional relevant columns found."
 
-        # Step 4: Crucial factors analysis
-        status_text.text("⚡ Analyzing career factors...")
-        progress_bar.progress(70)
-        
         crucial_cols = [
             "Job Relatedness", "Salary", "Benefits", "Job security",
             "Job location", "Opportunity_for_advancement", "Intellectual_challenge",
@@ -1937,8 +1924,26 @@ class NYUCareerAdvisor:
             "Prestige_of_position/job title", "Change_in_career"
         ]
         factor_insights = []
-        # Limit to first 5 crucial columns for speed
-        for col in crucial_cols[:5]:
+        for col in crucial_cols:
+            if col in filtered_df.columns:
+                col_data = filtered_df[col].dropna()
+                if not col_data.empty:
+                    if pd.api.types.is_numeric_dtype(col_data):
+                        avg_val = round(col_data.mean(), 2)
+                        factor_insights.append(f"{col}: average rating = {avg_val}")
+                    else:
+                        top_vals = col_data.value_counts().head(2).index.tolist()
+                        factor_insights.append(f"{col}: top responses = {top_vals}")
+        factor_insights_str = "\n".join(factor_insights) or "No crucial column data available in the filtered set."
+
+        numeric_cols = filtered_df.select_dtypes(include=['int','float']).columns
+        if len(numeric_cols) > 1:
+            stds = filtered_df[numeric_cols].std().abs().sort_values(ascending=False)
+            top_cols = stds.head(5).index
+            corr_matrix = filtered_df[top_cols].corr().round(2)
+            data_insights.append("Limited Correlation Matrix:\n" + corr_matrix.to_string())
+
+        insights_str = "\n".join(data_insights) or "No data insights found after filtering."
             if col in filtered_df.columns:
                 col_data = filtered_df[col].dropna()
                 if not col_data.empty:
