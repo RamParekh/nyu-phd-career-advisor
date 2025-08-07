@@ -854,8 +854,11 @@ def calculate_sentiment_with_multiple_models(text):
         tb_score = -0.2
         results['TextBlob'] = tb_score
 
-    # Weighted ensemble - always calculate ensemble score
-    results['Ensemble'] = vader_weight * results['VADER'] + tb_weight * tb_score
+    # Weighted ensemble - use all scores, even small ones
+    if abs(results['VADER']) > 0.001 or abs(tb_score) > 0.001:
+        results['Ensemble'] = vader_weight * results['VADER'] + tb_weight * tb_score
+    else:
+        results['Ensemble'] = 0.0
 
     # If both models are neutral but sarcasm cues, nudge negative
     if sarcasm and abs(results['Ensemble']) < 0.05:
@@ -1026,12 +1029,6 @@ def map_division_to_major_group(division):
 def calculate_sentiment_scores(sentiment_df):
     """Calculate sentiment scores for each major academic group using ensemble model."""
     if sentiment_df is None or sentiment_df.empty:
-        print("❌ Sentiment DataFrame is None or empty")
-        return None, None
-    
-    print(f"🔍 Processing sentiment data: {len(sentiment_df)} rows")
-    if 'Comments' not in sentiment_df.columns:
-        print(f"❌ Comments column missing. Available columns: {list(sentiment_df.columns)}")
         return None, None
     
     # Create a copy to avoid modifying the original
@@ -1043,21 +1040,15 @@ def calculate_sentiment_scores(sentiment_df):
     
     # Calculate sentiment scores using ensemble model
     sentiment_scores = []
-    for i, comment in enumerate(df_copy['Comments']):
+    for comment in df_copy['Comments']:
         try:
             if pd.isna(comment) or str(comment).strip() == '':
                 sentiment_scores.append(0.0)
             else:
                 # Use ensemble model for better accuracy
                 ensemble_result = calculate_sentiment_with_multiple_models(comment)
-                sentiment_score = ensemble_result['Ensemble']
-                sentiment_scores.append(sentiment_score)
-                
-                # Debug: Print first 5 sentiment calculations
-                if i < 5:
-                    print(f"🔍 Comment {i+1}: '{str(comment)[:50]}...' -> Sentiment: {sentiment_score:.3f}")
-        except Exception as e:
-            print(f"❌ Error calculating sentiment for comment {i+1}: {e}")
+                sentiment_scores.append(ensemble_result['Ensemble'])
+        except:
             sentiment_scores.append(0.0)
     
     # Ensure the length matches
@@ -1080,23 +1071,11 @@ def calculate_sentiment_scores(sentiment_df):
                 'comment_count': count,
                 'sentiment_range': (group_data['Sentiment_Score'].min(), group_data['Sentiment_Score'].max())
             }
-            print(f"🔍 {group}: {count} comments, avg sentiment: {avg_sentiment:.3f}, range: {group_data['Sentiment_Score'].min():.3f} to {group_data['Sentiment_Score'].max():.3f}")
-        else:
-            print(f"⚠️ No data found for group: {group}")
     
     return group_sentiments, df_copy
 
 # Load sentiment data and evaluate models
-if sentiment_df is not None:
-    print(f"🔍 Sentiment data loaded: {len(sentiment_df)} rows")
-    if 'Comments' in sentiment_df.columns:
-        print(f"🔍 Comments column found with {sentiment_df['Comments'].notna().sum()} non-null values")
-    else:
-        print(f"❌ Comments column not found. Available columns: {list(sentiment_df.columns)}")
-    sentiment_scores, processed_sentiment_df = calculate_sentiment_scores(sentiment_df)
-else:
-    print("❌ No sentiment data available")
-    sentiment_scores, processed_sentiment_df = None, None
+sentiment_scores, processed_sentiment_df = calculate_sentiment_scores(sentiment_df) if sentiment_df is not None else (None, None)
 
 # --- Sarcasm Macro/Count in Sidebar ---
 def sarcasm_macro_count(df):
@@ -1267,16 +1246,11 @@ if sentiment_df is not None:
 def get_sentiment_insights(selected_division, sentiment_scores):
     """Generate sentiment insights for career recommendations."""
     if sentiment_scores is None:
-        print(f"❌ sentiment_scores is None for division: {selected_division}")
         return ""
     
     # Map the selected division to major group
     major_group = map_division_to_major_group(selected_division)
-    print(f"🔍 Division '{selected_division}' mapped to major group: '{major_group}'")
-    print(f"🔍 Available sentiment groups: {list(sentiment_scores.keys()) if sentiment_scores else 'None'}")
-    print(f"🔍 Sentiment scores content: {sentiment_scores}")
     
-    # Check if the mapped group exists in sentiment data
     if major_group in sentiment_scores:
         sentiment_data = sentiment_scores[major_group]
         avg_sentiment = sentiment_data['average_sentiment']
@@ -1307,22 +1281,6 @@ def get_sentiment_insights(selected_division, sentiment_scores):
         - Average Sentiment Score: {avg_sentiment:.3f} (based on {count} comments)
         - Sentiment Range: {sentiment_data['sentiment_range'][0]:.3f} to {sentiment_data['sentiment_range'][1]:.3f}
         - Career Insight: {sentiment_insight}
-        """
-    
-    # Fallback: If no exact match, try to find any available sentiment data
-    if sentiment_scores:
-        print(f"⚠️ No exact match for '{major_group}'. Trying fallback...")
-        # Use the first available group as fallback
-        fallback_group = list(sentiment_scores.keys())[0]
-        fallback_data = sentiment_scores[fallback_group]
-        avg_sentiment = fallback_data['average_sentiment']
-        count = fallback_data['comment_count']
-        
-        return f"""
-        **Sentiment Analysis (Fallback from {fallback_group}):**
-        - Average Sentiment Score: {avg_sentiment:.3f} (based on {count} comments)
-        - Sentiment Range: {fallback_data['sentiment_range'][0]:.3f} to {fallback_data['sentiment_range'][1]:.3f}
-        - Note: Using {fallback_group} data as closest available for {major_group}
         """
     
     return f"No sentiment data available for {major_group}."
@@ -1907,10 +1865,7 @@ class NYUCareerAdvisor:
         financial_scholarships=None,
         funding=None,
         desirability=None,
-        user_riasec=None,
-        sentiment_scores=None,
-        theme_sentiments=None,
-        processed_sentiment_df=None
+        user_riasec=None
     ):
         if self.df is None:
             return "No dataset loaded. Please upload an Excel file."
@@ -1990,8 +1945,6 @@ class NYUCareerAdvisor:
             data_insights.append("Limited Correlation Matrix:\n" + corr_matrix.to_string())
 
         insights_str = "\n".join(data_insights) or "No data insights found after filtering."
-
-
 
         if not income.strip():
             income = "Approx. range from web sources: $60k–$80k"
@@ -2075,22 +2028,6 @@ class NYUCareerAdvisor:
 
         # Get sentiment insights for the selected division
         sentiment_insights = get_sentiment_insights(selected_division, sentiment_scores)
-        
-        # Debug: Print actual sentiment insights
-        print(f"🔍 Sentiment insights content:")
-        print(f"  - Length: {len(sentiment_insights) if sentiment_insights else 0}")
-        print(f"  - Content: {sentiment_insights[:200] if sentiment_insights else 'None'}...")
-        print(f"  - Full content: {sentiment_insights}")
-        
-        # Debug: Print sentiment data status
-        print(f"🔍 Sentiment data status:")
-        print(f"  - sentiment_scores: {sentiment_scores is not None}")
-        print(f"  - theme_sentiments: {theme_sentiments is not None}")
-        print(f"  - processed_sentiment_df: {processed_sentiment_df is not None}")
-        if sentiment_scores:
-            print(f"  - Available groups: {list(sentiment_scores.keys())}")
-        if theme_sentiments:
-            print(f"  - Available theme groups: {list(theme_sentiments.keys())}")
 
         # Get thematic insights for the selected division
         thematic_insights = get_theme_insights_for_division(selected_division, theme_sentiments, processed_sentiment_df)
@@ -2111,20 +2048,6 @@ class NYUCareerAdvisor:
                     f"- Most Positive: '{top_theme.title()}' ({top_data['average_sentiment']:.2f}) with {top_data['comment_count']} comments.\n"
                     f"- Most Negative: '{bottom_theme.title()}' ({bottom_data['average_sentiment']:.2f}) with {bottom_data['comment_count']} comments.\n"
                 )
-                print(f"🔍 Key theme summary: {key_theme_summary}")
-        else:
-            print(f"❌ No theme data for major_group: {major_group}")
-            print(f"🔍 Available theme groups: {list(theme_sentiments.keys()) if theme_sentiments else 'None'}")
-            
-        # Fallback: If no sentiment data, provide basic sentiment info
-        if not sentiment_insights or sentiment_insights.strip() == "":
-            sentiment_insights = f"""
-            **Sentiment Analysis for {major_group}:**
-            - Sentiment data calculated using TextBlob and VADER on NYU alumni comments
-            - Based on real feedback from {major_group} students
-            - Use this data to inform career recommendations
-            """
-            print(f"⚠️ Using fallback sentiment insights for {major_group}")
         
         # --- NEW: Add explicit instructions for LLM to reference these scores ---
         prompt = f"""
@@ -2162,16 +2085,6 @@ class NYUCareerAdvisor:
 
         --- TARGET COMPANIES INFO ---
         {comp_prompt}
-
-        **CRITICAL INSTRUCTIONS FOR SENTIMENT ANALYSIS:**
-        - You MUST use the sentiment analysis data provided above in your recommendations
-        - The sentiment scores are calculated using TextBlob and VADER on real NYU alumni data
-        - For each recommendation section (Short/Medium/Long-term), you MUST include a 'Sentiment Justification' bullet
-        - Reference specific sentiment scores like "research theme sentiment is 0.40" or "overall sentiment is -0.15"
-        - If sentiment is positive (>0.1), emphasize success stories and opportunities
-        - If sentiment is negative (<-0.1), address challenges and provide mitigation strategies
-        - If sentiment is neutral (-0.1 to 0.1), provide balanced advice
-        - Use the exact sentiment scores provided, not generic statements
 
         IMPORTANT POINTS:
         - {year_instructions}
@@ -2384,10 +2297,7 @@ def career_recommendations_tab(advisor):
                 financial_scholarships=financial_scholarships,
                 funding=funding,
                 desirability=desirability,
-                user_riasec=riasec_scores,
-                sentiment_scores=sentiment_scores,
-                theme_sentiments=theme_sentiments,
-                processed_sentiment_df=processed_sentiment_df
+                user_riasec=riasec_scores
             )
             if recommendations:
                 st.markdown("### 📋 Your Personalized Career Recommendations")
@@ -2396,7 +2306,7 @@ def career_recommendations_tab(advisor):
                 # Create a beautiful recommendations container
                 st.markdown(f"""
                 <div style='background:white; border:2px solid #57068c; border-radius:12px; padding:25px; margin:20px 0; box-shadow:0 4px 12px rgba(87,6,140,0.1);'>
-                    {recommendations.replace('</div>', '')}
+                    {recommendations}
                 </div>
                 """, unsafe_allow_html=True)
                 
