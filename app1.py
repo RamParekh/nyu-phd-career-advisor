@@ -922,10 +922,7 @@ def evaluate_sentiment_models(sentiment_df):
         if VADER_AVAILABLE:
             vd_score = vader_scores[i]
             # Weighted ensemble: VADER 60%, TextBlob 40%
-            if abs(tb_score) > 0.001 or abs(vd_score) > 0.001:
-                ensemble_scores.append(0.6 * vd_score + 0.4 * tb_score)
-            else:
-                ensemble_scores.append(0.0)
+            ensemble_scores.append(0.6 * vd_score + 0.4 * tb_score)
         else:
             ensemble_scores.append(tb_score)
     
