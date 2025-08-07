@@ -1029,6 +1029,12 @@ def map_division_to_major_group(division):
 def calculate_sentiment_scores(sentiment_df):
     """Calculate sentiment scores for each major academic group using ensemble model."""
     if sentiment_df is None or sentiment_df.empty:
+        print("❌ Sentiment DataFrame is None or empty")
+        return None, None
+    
+    print(f"🔍 Processing sentiment data: {len(sentiment_df)} rows")
+    if 'Comments' not in sentiment_df.columns:
+        print(f"❌ Comments column missing. Available columns: {list(sentiment_df.columns)}")
         return None, None
     
     # Create a copy to avoid modifying the original
@@ -1074,7 +1080,16 @@ def calculate_sentiment_scores(sentiment_df):
     return group_sentiments, df_copy
 
 # Load sentiment data and evaluate models
-sentiment_scores, processed_sentiment_df = calculate_sentiment_scores(sentiment_df) if sentiment_df is not None else (None, None)
+if sentiment_df is not None:
+    print(f"🔍 Sentiment data loaded: {len(sentiment_df)} rows")
+    if 'Comments' in sentiment_df.columns:
+        print(f"🔍 Comments column found with {sentiment_df['Comments'].notna().sum()} non-null values")
+    else:
+        print(f"❌ Comments column not found. Available columns: {list(sentiment_df.columns)}")
+    sentiment_scores, processed_sentiment_df = calculate_sentiment_scores(sentiment_df)
+else:
+    print("❌ No sentiment data available")
+    sentiment_scores, processed_sentiment_df = None, None
 
 # --- Sarcasm Macro/Count in Sidebar ---
 def sarcasm_macro_count(df):
@@ -1864,7 +1879,10 @@ class NYUCareerAdvisor:
         financial_scholarships=None,
         funding=None,
         desirability=None,
-        user_riasec=None
+        user_riasec=None,
+        sentiment_scores=None,
+        theme_sentiments=None,
+        processed_sentiment_df=None
     ):
         if self.df is None:
             return "No dataset loaded. Please upload an Excel file."
@@ -2298,7 +2316,10 @@ def career_recommendations_tab(advisor):
                 financial_scholarships=financial_scholarships,
                 funding=funding,
                 desirability=desirability,
-                user_riasec=riasec_scores
+                user_riasec=riasec_scores,
+                sentiment_scores=sentiment_scores,
+                theme_sentiments=theme_sentiments,
+                processed_sentiment_df=processed_sentiment_df
             )
             if recommendations:
                 st.markdown("### 📋 Your Personalized Career Recommendations")
