@@ -703,18 +703,23 @@ def load_local_data():
     return loaded_data
 
 def load_data():
-    """Load NYU career data from secrets or local file."""
+    """Load NYU career data from local file or secrets."""
     try:
-        # Try to load from secrets first
-        if 'data_files' in st.secrets and 'nyu_data' in st.secrets['data_files']:
+        # Try to load from local file first (for development)
+        if os.path.exists("data/imputed_data_NYU copy 3.xlsx"):
+            df = pd.read_excel("data/imputed_data_NYU copy 3.xlsx")
+            print(f"✅ Loaded {len(df)} NYU records from local file")
+        elif 'data_files' in st.secrets and 'nyu_data' in st.secrets['data_files']:
+            # Fallback to secrets (for production)
             import base64
             import io
             nyu_data_b64 = st.secrets['data_files']['nyu_data']
             nyu_data_bytes = base64.b64decode(nyu_data_b64)
             df = pd.read_excel(io.BytesIO(nyu_data_bytes))
+            print(f"✅ Loaded {len(df)} NYU records from secrets")
         else:
-            # Fallback to local file
-            df = pd.read_excel("data/imputed_data_NYU copy 3.xlsx")
+            print("❌ No NYU data available locally or in secrets")
+            return None
         
         # Clean the data
         for c in df.select_dtypes(include=[object]):
@@ -725,10 +730,14 @@ def load_data():
         return None
 
 def load_handshake_events():
-    """Load Handshake events from secrets or local file."""
+    """Load Handshake events from local file or secrets."""
     try:
-        # Try to load from secrets first
-        if 'data_files' in st.secrets and 'handshake_events' in st.secrets['data_files']:
+        # Try to load from local file first (for development)
+        if os.path.exists("data/Events for Graduate Students.csv"):
+            df = pd.read_csv("data/Events for Graduate Students.csv")
+            print(f"✅ Loaded {len(df)} Handshake events from local file")
+        elif 'data_files' in st.secrets and 'handshake_events' in st.secrets['data_files']:
+            # Fallback to secrets (for production)
             import base64
             import io
             events_data_b64 = st.secrets['data_files']['handshake_events']
@@ -736,19 +745,22 @@ def load_handshake_events():
             df = pd.read_csv(io.BytesIO(events_data_bytes))
             print(f"✅ Loaded {len(df)} Handshake events from secrets")
         else:
-            # Fallback to local file
-            df = pd.read_csv("data/Events for Graduate Students.csv")
-            print(f"✅ Loaded {len(df)} Handshake events from local file")
+            print("❌ No Handshake events available locally or in secrets")
+            return pd.DataFrame()
         return df
     except Exception as e:
         print(f"❌ Error loading Handshake events: {e}")
         return pd.DataFrame()
 
 def load_sentiment_data():
-    """Load sentiment analysis data from secrets or local file."""
+    """Load sentiment analysis data from local file or secrets."""
     try:
-        # Try to load from secrets first
-        if 'data_files' in st.secrets and 'sentiment_data' in st.secrets['data_files']:
+        # Try to load from local file first (for development)
+        if os.path.exists("data/sentiment analysis- Final combined .xlsx"):
+            df = pd.read_excel("data/sentiment analysis- Final combined .xlsx")
+            print(f"✅ Loaded {len(df)} sentiment records from local file")
+        elif 'data_files' in st.secrets and 'sentiment_data' in st.secrets['data_files']:
+            # Fallback to secrets (for production)
             import base64
             import io
             sentiment_data_b64 = st.secrets['data_files']['sentiment_data']
@@ -756,31 +768,35 @@ def load_sentiment_data():
             df = pd.read_excel(io.BytesIO(sentiment_data_bytes))
             print(f"✅ Loaded {len(df)} sentiment records from secrets")
         else:
-            # Fallback to local file
-            df = pd.read_excel("data/sentiment analysis- Final combined .xlsx")
-            print(f"✅ Loaded {len(df)} sentiment records from local file")
+            print("❌ No sentiment data available locally or in secrets")
+            return None
         return df
     except Exception as e:
         print(f"❌ Error loading sentiment data: {e}")
         return None
 
 def load_training_data():
-    """Load training data from secrets or local file."""
+    """Load training data from local file or secrets."""
     try:
-        # Try to load from secrets first
-        if 'data_files' in st.secrets and 'training_data' in st.secrets['data_files']:
+        # Try to load from local file first (for development)
+        if os.path.exists("data/phd_career_sector_training_data_final_1200.xlsx"):
+            df = pd.read_excel("data/phd_career_sector_training_data_final_1200.xlsx")
+            print(f"✅ Loaded {len(df)} training records from local file")
+        elif 'data_files' in st.secrets and 'training_data' in st.secrets['data_files']:
+            # Fallback to secrets (for production)
             import base64
             import io
             training_data_b64 = st.secrets['data_files']['training_data']
             training_data_bytes = base64.b64decode(training_data_b64)
             df = pd.read_excel(io.BytesIO(training_data_bytes))
+            print(f"✅ Loaded {len(df)} training records from secrets")
         else:
-            # Fallback to local file
-            df = pd.read_excel("data/phd_career_sector_training_data_final_1200.xlsx")
+            print("❌ No training data available locally or in secrets")
+            return None
         
         # Check required columns
         if 'profile' not in df.columns or 'target_sector' not in df.columns:
-            st.error(f"""
+            print(f"""
             Training dataset must contain 'profile' and 'target_sector' columns!
             Found columns: {list(df.columns)}
             """)
@@ -2696,21 +2712,16 @@ try:
     sentiment_df = all_data.get('sentiment_data', None)
     
     if df is None:
-        # Try direct file loading as fallback
-        try:
-            df = pd.read_excel("data/imputed_data_NYU copy 3.xlsx")
-            print("✅ Loaded data from local file as fallback")
-        except Exception as e:
-            print(f"❌ Could not load data from local files: {e}")
-            print("📋 Please ensure data files are in the 'data' folder or configure Streamlit secrets")
-            # Create a minimal placeholder DataFrame to prevent app crash
-            df = pd.DataFrame({
-                'Academic_Division': ['Computer Science', 'Engineering', 'Business'],
-                'School': ['Tandon', 'Tandon', 'Stern'],
-                'Citizenship': ['US Citizen', 'International', 'US Citizen'],
-                'Income': ['$50,000-$75,000', '$75,000-$100,000', '$100,000+']
-            })
-            print("✅ Created placeholder data to keep app running")
+        print("❌ Could not load data from any source")
+        print("📋 Please ensure data files are in the 'data' folder or configure Streamlit secrets")
+        # Create a minimal placeholder DataFrame to prevent app crash
+        df = pd.DataFrame({
+            'Academic_Division': ['Computer Science', 'Engineering', 'Business'],
+            'School': ['Tandon', 'Tandon', 'Stern'],
+            'Citizenship': ['US Citizen', 'International', 'US Citizen'],
+            'Income': ['$50,000-$75,000', '$75,000-$100,000', '$100,000+']
+        })
+        print("✅ Created placeholder data to keep app running")
         
 except Exception as e:
     print(f"🚨 Error loading data: {e}")
