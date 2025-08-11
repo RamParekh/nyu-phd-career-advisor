@@ -558,60 +558,7 @@ def load_local_data():
     """Load all data from local files in the data folder."""
     loaded_data = {}
     
-    # Try to load from Streamlit secrets first, fallback to local files
-    try:
-        # Check if we have secrets data
-        if 'data_files' in st.secrets:
-            print("🔐 Loading data from Streamlit secrets...")
-            
-            # Load NYU career data from base64
-            if 'nyu_data' in st.secrets['data_files']:
-                import base64
-                import io
-                nyu_data_b64 = st.secrets['data_files']['nyu_data']
-                nyu_data_bytes = base64.b64decode(nyu_data_b64)
-                df = pd.read_excel(io.BytesIO(nyu_data_bytes))
-                # Clean the data
-                for c in df.select_dtypes(include=[object]):
-                    df[c] = df[c].astype(str).str[:800]
-                loaded_data['nyu_data'] = df
-                print(f"✅ Loaded {len(df)} records from secrets (NYU career data)")
-            
-            # Load Handshake events from base64
-            if 'handshake_events' in st.secrets['data_files']:
-                import base64
-                import io
-                events_data_b64 = st.secrets['data_files']['handshake_events']
-                events_data_bytes = base64.b64decode(events_data_b64)
-                events_df = pd.read_csv(io.BytesIO(events_data_bytes))
-                loaded_data['handshake_events'] = events_df
-                print(f"✅ Loaded {len(events_df)} Handshake events from secrets")
-            
-            # Load sentiment data from local file (keep as Excel for sentiment models)
-            try:
-                sentiment_df = pd.read_excel("data/sentiment analysis- Final combined .xlsx")
-                loaded_data['sentiment_data'] = sentiment_df
-                print(f"✅ Loaded {len(sentiment_df)} sentiment records from local Excel file")
-            except Exception as e:
-                print(f"❌ Error loading sentiment data: {e}")
-            
-            # Load training data from base64
-            if 'training_data' in st.secrets['data_files']:
-                import base64
-                import io
-                training_data_b64 = st.secrets['data_files']['training_data']
-                training_data_bytes = base64.b64decode(training_data_b64)
-                training_df = pd.read_excel(io.BytesIO(training_data_bytes))
-                loaded_data['training_data'] = training_df
-                print(f"✅ Loaded {len(training_df)} training records from secrets")
-            
-            return loaded_data
-            
-    except Exception as e:
-        print(f"⚠️ Could not load from secrets: {e}")
-        print("🔄 Falling back to local files...")
-    
-    # Fallback to local files
+    # For local development, prioritize local files
     print("📁 Loading data from local files...")
     
     # Load NYU career data
@@ -648,6 +595,47 @@ def load_local_data():
         print(f"✅ Loaded {len(training_df)} training records")
     except Exception as e:
         print(f"❌ Error loading training data: {e}")
+    
+    # Try to load from Streamlit secrets as fallback (for production)
+    try:
+        if 'data_files' in st.secrets:
+            print("🔐 Also found Streamlit secrets data (will use for production)...")
+            
+            # Load NYU career data from base64 if not already loaded
+            if 'nyu_data' not in loaded_data and 'nyu_data' in st.secrets['data_files']:
+                import base64
+                import io
+                nyu_data_b64 = st.secrets['data_files']['nyu_data']
+                nyu_data_bytes = base64.b64decode(nyu_data_b64)
+                df = pd.read_excel(io.BytesIO(nyu_data_bytes))
+                # Clean the data
+                for c in df.select_dtypes(include=[object]):
+                    df[c] = df[c].astype(str).str[:800]
+                loaded_data['nyu_data'] = df
+                print(f"✅ Loaded {len(df)} records from secrets (NYU career data)")
+            
+            # Load Handshake events from base64 if not already loaded
+            if 'handshake_events' not in loaded_data and 'handshake_events' in st.secrets['data_files']:
+                import base64
+                import io
+                events_data_b64 = st.secrets['data_files']['handshake_events']
+                events_data_bytes = base64.b64decode(events_data_b64)
+                events_df = pd.read_csv(io.BytesIO(events_data_bytes))
+                loaded_data['handshake_events'] = events_df
+                print(f"✅ Loaded {len(events_df)} Handshake events from secrets")
+            
+            # Load training data from base64 if not already loaded
+            if 'training_data' not in loaded_data and 'training_data' in st.secrets['data_files']:
+                import base64
+                import io
+                training_data_b64 = st.secrets['data_files']['training_data']
+                training_data_bytes = base64.b64decode(training_data_b64)
+                training_df = pd.read_excel(io.BytesIO(training_data_bytes))
+                loaded_data['training_data'] = training_df
+                print(f"✅ Loaded {len(training_df)} training records from secrets")
+            
+    except Exception as e:
+        print(f"⚠️ Could not load from secrets: {e}")
     
     return loaded_data
 
@@ -885,18 +873,43 @@ def map_division_to_major_group(division):
 def calculate_sentiment_scores(sentiment_df):
     """Calculate sentiment scores for each major academic group using ensemble model."""
     if sentiment_df is None or sentiment_df.empty:
+        print("❌ Sentiment dataframe is None or empty")
         return None, None
     
     # Create a copy to avoid modifying the original
     df_copy = sentiment_df.copy()
     
+    # Debug: Print available columns
+    print(f"📋 Available columns in sentiment data: {list(df_copy.columns)}")
+    
+    # Find the comments column (try different possible names)
+    comments_column = None
+    possible_comment_columns = ['Comments', 'Comment', 'Text', 'Feedback', 'Response', 'Review']
+    
+    for col in possible_comment_columns:
+        if col in df_copy.columns:
+            comments_column = col
+            print(f"✅ Found comments column: {col}")
+            break
+    
+    if comments_column is None:
+        print(f"❌ No comments column found. Available columns: {list(df_copy.columns)}")
+        return None, None
+    
     # The Academic_Division column already contains the major groups
     # Just use it directly as Major_Group
-    df_copy['Major_Group'] = df_copy['Academic_Division']
+    if 'Academic_Division' in df_copy.columns:
+        df_copy['Major_Group'] = df_copy['Academic_Division']
+        print(f"✅ Using Academic_Division column for Major_Group")
+    else:
+        print(f"❌ No Academic_Division column found. Available columns: {list(df_copy.columns)}")
+        return None, None
     
     # Calculate sentiment scores using ensemble model
     sentiment_scores = []
-    for comment in df_copy['Comments']:
+    print(f"🔄 Processing {len(df_copy)} comments for sentiment analysis...")
+    
+    for i, comment in enumerate(df_copy[comments_column]):
         try:
             if pd.isna(comment) or str(comment).strip() == '':
                 sentiment_scores.append(0.0)
@@ -904,18 +917,27 @@ def calculate_sentiment_scores(sentiment_df):
                 # Use ensemble model for better accuracy
                 ensemble_result = calculate_sentiment_with_multiple_models(comment)
                 sentiment_scores.append(ensemble_result['Ensemble'])
-        except:
+                
+                # Show progress every 100 comments
+                if (i + 1) % 100 == 0:
+                    print(f"   Processed {i + 1}/{len(df_copy)} comments...")
+                    
+        except Exception as e:
+            print(f"⚠️ Error processing comment {i}: {e}")
             sentiment_scores.append(0.0)
     
     # Ensure the length matches
     if len(sentiment_scores) != len(df_copy):
-        st.error(f"Sentiment score length mismatch: {len(sentiment_scores)} vs {len(df_copy)}")
+        print(f"❌ Sentiment score length mismatch: {len(sentiment_scores)} vs {len(df_copy)}")
         return None, None
     
     df_copy['Sentiment_Score'] = sentiment_scores
+    print(f"✅ Added sentiment scores to dataframe")
     
     # Group by major academic groups and calculate average sentiment
     group_sentiments = {}
+    print(f"📊 Grouping by major academic groups...")
+    
     for group in ['Humanities', 'Natural Science', 'Social Science']:
         group_data = df_copy[df_copy['Major_Group'] == group]
         if not group_data.empty:
@@ -927,7 +949,11 @@ def calculate_sentiment_scores(sentiment_df):
                 'comment_count': count,
                 'sentiment_range': (group_data['Sentiment_Score'].min(), group_data['Sentiment_Score'].max())
             }
+            print(f"   {group}: {count} comments, avg sentiment: {avg_sentiment:.3f}")
+        else:
+            print(f"   {group}: No data found")
     
+    print(f"✅ Sentiment analysis complete!")
     return group_sentiments, df_copy
 
 # Load sentiment data and evaluate models
@@ -935,8 +961,34 @@ sentiment_scores, processed_sentiment_df = calculate_sentiment_scores(sentiment_
 
 # --- Sarcasm Macro/Count in Sidebar ---
 def sarcasm_macro_count(df):
-    """Simple function that returns 0 for sarcasm count (disabled)."""
-    return 0, 0.0
+    """Count sarcastic comments in the dataset."""
+    if df is None or df.empty:
+        return 0, 0.0
+    
+    # Find the comments column
+    comments_column = None
+    possible_comment_columns = ['Comments', 'Comment', 'Text', 'Feedback', 'Response', 'Review']
+    
+    for col in possible_comment_columns:
+        if col in df.columns:
+            comments_column = col
+            break
+    
+    if comments_column is None:
+        print(f"❌ No comments column found in sarcasm_macro_count")
+        return 0, 0.0
+    
+    sarcasm_count = 0
+    total_comments = 0
+    
+    for comment in df[comments_column]:
+        if pd.notna(comment) and str(comment).strip() != '':
+            total_comments += 1
+            if detect_sarcasm(str(comment)):
+                sarcasm_count += 1
+    
+    sarcasm_percent = (sarcasm_count / total_comments * 100) if total_comments > 0 else 0.0
+    return sarcasm_count, sarcasm_percent
 
 # Evaluate model performance (temporarily disabled to fix sentiment scores)
 model_evaluation = None
@@ -947,10 +999,23 @@ def extract_theme_sentiments(df, themes):
     if df is None or df.empty:
         return {}
     
+    # Find the comments column
+    comments_column = None
+    possible_comment_columns = ['Comments', 'Comment', 'Text', 'Feedback', 'Response', 'Review']
+    
+    for col in possible_comment_columns:
+        if col in df.columns:
+            comments_column = col
+            break
+    
+    if comments_column is None:
+        print(f"❌ No comments column found in extract_theme_sentiments")
+        return {}
+    
     theme_sentiments = defaultdict(lambda: defaultdict(list))
     
     for _, row in df.iterrows():
-        comment = str(row['Comments']).lower()
+        comment = str(row[comments_column]).lower()
         sentiment = row['Sentiment_Score']
         group = row['Major_Group']
         
@@ -982,10 +1047,23 @@ def get_representative_quotes(df, group, theme, sentiment_threshold=0.1, n=2):
     if df is None or df.empty:
         return []
     
+    # Find the comments column
+    comments_column = None
+    possible_comment_columns = ['Comments', 'Comment', 'Text', 'Feedback', 'Response', 'Review']
+    
+    for col in possible_comment_columns:
+        if col in df.columns:
+            comments_column = col
+            break
+    
+    if comments_column is None:
+        print(f"❌ No comments column found in get_representative_quotes")
+        return []
+    
     # Filter comments by group and theme
     filtered = df[
         (df['Major_Group'] == group) & 
-        (df['Comments'].str.lower().str.contains(theme, na=False))
+        (df[comments_column].str.lower().str.contains(theme, na=False))
     ]
     
     if filtered.empty:
