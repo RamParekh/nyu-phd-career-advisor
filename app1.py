@@ -38,19 +38,7 @@ except ImportError:
 
 warnings.filterwarnings("ignore")
 
-# Helper function to handle duplicate headers
-def handle_duplicate_headers(headers):
-    """Handle duplicate headers by adding numeric suffixes."""
-    seen_headers = {}
-    unique_headers = []
-    for header in headers:
-        if header in seen_headers:
-            seen_headers[header] += 1
-            unique_headers.append(f"{header}_{seen_headers[header]}")
-        else:
-            seen_headers[header] = 0
-            unique_headers.append(header)
-    return unique_headers
+
 
 # Move set_page_config here, before any other Streamlit commands
 st.set_page_config(page_title="NYU PhD Career Advisor", layout="wide", initial_sidebar_state="expanded")
@@ -85,27 +73,7 @@ if not VADER_AVAILABLE:
 # Local Data Loading Helper --------------------------------------------
 # -----------------------------------------------------------------------------
 
-def check_data_files():
-    """Check if all required data files exist."""
-    required_files = [
-        "data/imputed_data_NYU copy 3.xlsx",
-        "data/Events for Graduate Students.csv",
-        "data/sentiment analysis- Final combined .xlsx",
-        "data/phd_career_sector_training_data_final_1200.xlsx"
-    ]
-    
-    missing_files = []
-    for file_path in required_files:
-        if not os.path.exists(file_path):
-            missing_files.append(file_path)
-    
-    if missing_files:
-        st.warning(f"⚠️ Missing data files: {missing_files}")
-        st.info("📋 To get the full functionality, please add the required data files to the 'data' folder.")
-        st.info("🔗 You can also use the 'convert_data_to_secrets.py' script to convert your data files to Streamlit secrets.")
-        return False
-    
-    return True
+
 
 # -------------------------------------------------------------------
 # Reinforcement Learning (basic Q-table using Google Sheets feedback)
@@ -570,31 +538,12 @@ def predict_sector_from_text(user_goals, desired_industry, work_env):
         st.sidebar.error(f"Detailed error: {str(e)}")
         return "Unknown"
 
-# Debug function to test sector prediction
-def debug_sector_prediction():
-    """Test the sector prediction model."""
-    if st.sidebar.button("🧪 Test Sector Prediction"):
-        test_inputs = [
-            ("I want to work in data science and machine learning", "Industry", "Collaborative"),
-            ("I want to be a professor and do research", "Academic", "Independent"),
-            ("I want to start my own business", "Entrepreneurial", "Independent"),
-            ("I want to work in government policy", "Government", "Collaborative"),
-            ("I want to work for a non-profit organization", "Non-profit", "Collaborative")
-        ]
-        
-        for test_input, desired_industry, work_env in test_inputs:
-            prediction = predict_sector_from_text(test_input, desired_industry, work_env)
-            st.sidebar.write(f"'{test_input[:40]}...' → {prediction}")
-
-# Add data refresh button
+# Data and model refresh buttons for development
 if st.sidebar.button("🔄 Refresh Data", help="Reload data from local files"):
     st.rerun()
 
-# Add model refresh button
 if st.sidebar.button("🤖 Refresh Model", help="Retrain the sector prediction model"):
     st.rerun()
-
-# Debug and model info buttons removed for cleaner UI
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("**Questions or issues?**\nContact: [rp4230@nyu.edu](mailto:rp4230@nyu.edu)")
@@ -881,112 +830,7 @@ def calculate_sentiment_with_multiple_models(text):
 
     return results
 
-def evaluate_sentiment_models(sentiment_df):
-    """Evaluate sentiment models using internal consistency and provide accuracy metrics."""
-    if sentiment_df is None or sentiment_df.empty:
-        return None
-    
-    # Create a copy for evaluation
-    df_eval = sentiment_df.copy()
-    
-    # Calculate sentiment scores for all models
-    model_scores = {}
-    model_consistency = {}
-    
-    # TextBlob evaluation
-    textblob_scores = []
-    for comment in df_eval['Comments']:
-        try:
-            blob = TextBlob(str(comment))
-            textblob_scores.append(blob.sentiment.polarity)
-        except:
-            textblob_scores.append(0.0)
-    
-    model_scores['TextBlob'] = textblob_scores
-    
-    # VADER evaluation
-    if VADER_AVAILABLE:
-        vader_scores = []
-        analyzer = SentimentIntensityAnalyzer()
-        for comment in df_eval['Comments']:
-            try:
-                vader_result = analyzer.polarity_scores(str(comment))
-                vader_scores.append(vader_result['compound'])
-            except:
-                vader_scores.append(0.0)
-        model_scores['VADER'] = vader_scores
-    
-    # Calculate model consistency (how often models agree on sentiment direction)
-    if VADER_AVAILABLE and len(textblob_scores) == len(vader_scores):
-        agreements = 0
-        total_comparisons = 0
-        strong_agreements = 0  # Both models strongly agree (same direction, high confidence)
-        
-        for i in range(len(textblob_scores)):
-            tb_score = textblob_scores[i]
-            vd_score = vader_scores[i]
-            
-            # Only compare if both scores are non-zero
-            if abs(tb_score) > 0.001 and abs(vd_score) > 0.001:
-                total_comparisons += 1
-                # Check if both are positive or both are negative
-                if (tb_score > 0 and vd_score > 0) or (tb_score < 0 and vd_score < 0):
-                    agreements += 1
-                    # Check for strong agreement (both scores > 0.3 or < -0.3)
-                    if (tb_score > 0.3 and vd_score > 0.3) or (tb_score < -0.3 and vd_score < -0.3):
-                        strong_agreements += 1
-        
-        if total_comparisons > 0:
-            model_consistency['TextBlob_VADER'] = agreements / total_comparisons
-            model_consistency['Strong_Agreement'] = strong_agreements / total_comparisons
-        else:
-            model_consistency['TextBlob_VADER'] = 0.0
-            model_consistency['Strong_Agreement'] = 0.0
-    
-    # Calculate weighted ensemble scores
-    ensemble_scores = []
-    for i in range(len(textblob_scores)):
-        tb_score = textblob_scores[i]
-        if VADER_AVAILABLE:
-            vd_score = vader_scores[i]
-            # Weighted ensemble: VADER 60%, TextBlob 40%
-            ensemble_scores.append(0.6 * vd_score + 0.4 * tb_score)
-        else:
-            ensemble_scores.append(tb_score)
-    
-    model_scores['Ensemble'] = ensemble_scores
-    
-    # Calculate model statistics
-    model_stats = {}
-    for model_name, scores in model_scores.items():
-        non_zero_scores = [s for s in scores if abs(s) > 0.01]
-        if non_zero_scores:
-            model_stats[model_name] = {
-                'mean_sentiment': np.mean(non_zero_scores),
-                'std_sentiment': np.std(non_zero_scores),
-                'positive_ratio': len([s for s in non_zero_scores if s > 0.1]) / len(non_zero_scores),
-                'negative_ratio': len([s for s in non_zero_scores if s < -0.1]) / len(non_zero_scores),
-                'neutral_ratio': len([s for s in non_zero_scores if -0.1 <= s <= 0.1]) / len(non_zero_scores),
-                'coverage': len(non_zero_scores) / len(scores),  # Percentage of non-zero scores
-                'confidence': np.mean([abs(s) for s in non_zero_scores])  # Average confidence level
-            }
-        else:
-            model_stats[model_name] = {
-                'mean_sentiment': 0.0,
-                'std_sentiment': 0.0,
-                'positive_ratio': 0.0,
-                'negative_ratio': 0.0,
-                'neutral_ratio': 0.0,
-                'coverage': 0.0,
-                'confidence': 0.0
-            }
-    
-    return {
-        'model_scores': model_scores,
-        'model_stats': model_stats,
-        'model_consistency': model_consistency,
-        'total_comments': len(sentiment_df)
-    }
+
 
 def map_division_to_major_group(division):
     """Map detailed academic divisions to three major groups: Humanities, Natural Science, Social Science."""
@@ -1186,24 +1030,7 @@ if sentiment_df is not None:
     print(f"\n=== SENTIMENT ANALYSIS CONSOLE OUTPUT ===")
     print(f" Sarcastic Comments Detected: {sarcasm_count} ({sarcasm_percent:.1f}% of all comments)")
     
-    # Debug sentiment calculation
-    if processed_sentiment_df is not None:
-        print(f"\n🔍 Sentiment Calculation Debug:")
-        print(f"   Total comments processed: {len(processed_sentiment_df)}")
-        print(f"   Comments with non-zero sentiment: {len(processed_sentiment_df[processed_sentiment_df['Sentiment_Score'] != 0.0])}")
-        print(f"   Comments with zero sentiment: {len(processed_sentiment_df[processed_sentiment_df['Sentiment_Score'] == 0.0])}")
-        
-        # Show sample sentiment scores
-        sample_scores = processed_sentiment_df['Sentiment_Score'].head(10)
-        print(f"   Sample sentiment scores: {sample_scores.tolist()}")
-        
-        # Show sentiment score distribution
-        score_ranges = {
-            'Positive (>0.1)': len(processed_sentiment_df[processed_sentiment_df['Sentiment_Score'] > 0.1]),
-            'Neutral (-0.1 to 0.1)': len(processed_sentiment_df[(processed_sentiment_df['Sentiment_Score'] >= -0.1) & (processed_sentiment_df['Sentiment_Score'] <= 0.1)]),
-            'Negative (<-0.1)': len(processed_sentiment_df[processed_sentiment_df['Sentiment_Score'] < -0.1])
-        }
-        print(f"   Sentiment distribution: {score_ranges}")
+
     
     if model_evaluation:
         print(f"\n📊 Model Performance Analysis:")
@@ -1297,48 +1124,7 @@ def get_sentiment_insights(selected_division, sentiment_scores):
     
     return f"No sentiment data available for {major_group}."
 
-def show_individual_model_predictions(text, model_evaluation):
-    """Show individual model predictions for a given text."""
-    if model_evaluation is None:
-        return
-    
-    # Get individual model predictions
-    individual_results = calculate_sentiment_with_multiple_models(text)
-    
-    st.write("**Individual Model Predictions:**")
-    
-    # Create a comparison table
-    model_data = []
-    for model_name, score in individual_results.items():
-        if model_name != 'Ensemble':
-            confidence = "High" if abs(score) > 0.3 else "Medium" if abs(score) > 0.1 else "Low"
-            sentiment = "Positive" if score > 0.1 else "Negative" if score < -0.1 else "Neutral"
-            model_data.append({
-                'Model': model_name,
-                'Score': f"{score:.3f}",
-                'Sentiment': sentiment,
-                'Confidence': confidence
-            })
-    
-    if model_data:
-        # Display as a table
-        import pandas as pd
-        df_models = pd.DataFrame(model_data)
-        st.table(df_models)
-        
-        # Show ensemble result
-        ensemble_score = individual_results['Ensemble']
-        ensemble_sentiment = "Positive" if ensemble_score > 0.1 else "Negative" if ensemble_score < -0.1 else "Neutral"
-        st.write(f"**Ensemble Result**: {ensemble_score:.3f} ({ensemble_sentiment})")
-        
-        # Show model agreement
-        if VADER_AVAILABLE:
-            tb_score = individual_results['TextBlob']
-            vd_score = individual_results['VADER']
-            if (tb_score > 0.1 and vd_score > 0.1) or (tb_score < -0.1 and vd_score < -0.1):
-                st.write("✅ **Model Agreement**: Both models agree on sentiment direction")
-            else:
-                st.write("⚠️ **Model Disagreement**: Models show different sentiment directions")
+
 
 # -----------------------------------------------------------------------------
 # Thematic Sentiment Analysis Functions ---------------------------------------
@@ -1404,25 +1190,7 @@ class LabelEncodingPipeline(Pipeline):
         # Convert back to original labels
         return self.label_encoder.inverse_transform(y_pred)
 
-def create_sample_training_data():
-    """Create sample training data for testing."""
-    sample_data = {
-        'profile': [
-            'I want to work in data science and machine learning',
-            'I am interested in academic research and teaching',
-            'I want to start my own business',
-            'I want to work in government policy',
-            'I want to work in industry research and development'
-        ],
-        'target_sector': [
-            'Industry',
-            'Academic',
-            'Entrepreneurial',
-            'Government',
-            'Industry'
-        ]
-    }
-    return pd.DataFrame(sample_data)
+
 
 # Update the train_text_sector_model function to use local files
 def train_text_sector_model():
@@ -1642,16 +1410,8 @@ def train_text_sector_model():
             'dataset_path': 'Local File - Training Data'
         }
         
-        # Test the model with a sample input (only for debugging)
-        try:
-            test_input = "I want to work in data science and machine learning"
-            test_prediction = pipeline.predict([test_input])[0]
-            # Only show test results in debug mode
-            if False:  # Debug mode disabled
-                st.sidebar.write(f"🧪 Test prediction: '{test_input}' → {test_prediction}")
-        except Exception as e:
-            if False:  # Debug mode disabled
-                st.sidebar.error(f"❌ Model test failed: {e}")
+
+
         
         return pipeline
         
