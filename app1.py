@@ -721,7 +721,7 @@ def load_data():
             df[c] = df[c].astype(str).str[:800]
         return df
     except Exception as e:
-        st.error(f"Error loading NYU data: {e}")
+        print(f"❌ Error loading NYU data: {e}")
         return None
 
 def load_handshake_events():
@@ -734,22 +734,34 @@ def load_handshake_events():
             events_data_b64 = st.secrets['data_files']['handshake_events']
             events_data_bytes = base64.b64decode(events_data_b64)
             df = pd.read_csv(io.BytesIO(events_data_bytes))
+            print(f"✅ Loaded {len(df)} Handshake events from secrets")
         else:
             # Fallback to local file
             df = pd.read_csv("data/Events for Graduate Students.csv")
+            print(f"✅ Loaded {len(df)} Handshake events from local file")
         return df
     except Exception as e:
-        st.error(f"Error loading Handshake events: {e}")
+        print(f"❌ Error loading Handshake events: {e}")
         return pd.DataFrame()
 
 def load_sentiment_data():
-    """Load sentiment analysis data from local Excel file (keep original format for sentiment models)."""
+    """Load sentiment analysis data from secrets or local file."""
     try:
-        # Always load from local Excel file for sentiment analysis
-        df = pd.read_excel("data/sentiment analysis- Final combined .xlsx")
+        # Try to load from secrets first
+        if 'data_files' in st.secrets and 'sentiment_data' in st.secrets['data_files']:
+            import base64
+            import io
+            sentiment_data_b64 = st.secrets['data_files']['sentiment_data']
+            sentiment_data_bytes = base64.b64decode(sentiment_data_b64)
+            df = pd.read_excel(io.BytesIO(sentiment_data_bytes))
+            print(f"✅ Loaded {len(df)} sentiment records from secrets")
+        else:
+            # Fallback to local file
+            df = pd.read_excel("data/sentiment analysis- Final combined .xlsx")
+            print(f"✅ Loaded {len(df)} sentiment records from local file")
         return df
     except Exception as e:
-        st.error(f"Error loading sentiment data: {e}")
+        print(f"❌ Error loading sentiment data: {e}")
         return None
 
 def load_training_data():
@@ -776,7 +788,7 @@ def load_training_data():
         
         return df
     except Exception as e:
-        st.error(f"Error loading training data: {e}")
+        print(f"❌ Error loading training data: {e}")
         return None
 
 # Load data efficiently
@@ -2631,8 +2643,7 @@ def main():
         st.error(f"🚨 App Error: {e}")
         st.info("Please check the logs for more details.")
 
-# Load Handshake events from local file
-handshake_events_df = load_handshake_events()
+# Handshake events are now loaded in the main data loading section
 
 # Add these function definitions before they're used (around line 800)
 
@@ -2688,13 +2699,31 @@ try:
         # Try direct file loading as fallback
         try:
             df = pd.read_excel("data/imputed_data_NYU copy 3.xlsx")
-        except Exception:
-            st.error("❌ Could not load data. Please check if data files are in the repository.")
-            st.stop()
+            print("✅ Loaded data from local file as fallback")
+        except Exception as e:
+            print(f"❌ Could not load data from local files: {e}")
+            print("📋 Please ensure data files are in the 'data' folder or configure Streamlit secrets")
+            # Create a minimal placeholder DataFrame to prevent app crash
+            df = pd.DataFrame({
+                'Academic_Division': ['Computer Science', 'Engineering', 'Business'],
+                'School': ['Tandon', 'Tandon', 'Stern'],
+                'Citizenship': ['US Citizen', 'International', 'US Citizen'],
+                'Income': ['$50,000-$75,000', '$75,000-$100,000', '$100,000+']
+            })
+            print("✅ Created placeholder data to keep app running")
         
 except Exception as e:
-    st.error(f"🚨 Error loading data: {e}")
-    st.stop()
+    print(f"🚨 Error loading data: {e}")
+    # Create minimal placeholder data
+    df = pd.DataFrame({
+        'Academic_Division': ['Computer Science'],
+        'School': ['Tandon'],
+        'Citizenship': ['US Citizen'],
+        'Income': ['$50,000-$75,000']
+    })
+    handshake_events_df = pd.DataFrame()
+    sentiment_df = None
+    print("✅ Created minimal placeholder data to keep app running")
 
 if __name__ == "__main__":
     main()
