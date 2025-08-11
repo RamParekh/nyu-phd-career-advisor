@@ -38,7 +38,47 @@ except ImportError:
 
 warnings.filterwarnings("ignore")
 
+# --- Sentiment Analysis Helper Functions ---
+def preprocess_text_for_sentiment(text):
+    """Expand contractions, normalize repeated chars, handle sarcasm cues, etc."""
+    if not isinstance(text, str):
+        return ""
+    # Expand contractions
+    text = contractions.fix(text)
+    # Lowercase
+    text = text.lower()
+    # Normalize repeated characters (e.g., sooooo -> soo)
+    text = re.sub(r'(.)\1{2,}', r'\1\1', text)
+    # Remove excessive punctuation (keep ! and ? for sentiment)
+    text = re.sub(r'([!?.])\1+', r'\1', text)
+    # Remove extra whitespace
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
 
+# --- Sarcasm Cue Detection ---
+SARCASM_CUES = [
+    'yeah right', 'as if', 'totally', 'sure', 'obviously', 'great...', 'nice...', 'love that',
+    'just perfect', 'wonderful', 'amazing', 'sure thing', 'can\'t wait', '/s', 'right...',
+    'fantastic', 'brilliant', 'awesome', 'lovely', 'what a surprise', 'what a joy', 'so fun',
+    'so helpful', 'thanks a lot', 'thanks for nothing', 'good luck with that', 'i bet',
+]
+
+def detect_sarcasm(text):
+    text = text.lower()
+    for cue in SARCASM_CUES:
+        if cue in text:
+            return True
+    return False
+
+# --- Custom VADER Lexicon for Sarcasm ---
+CUSTOM_VADER_LEXICON = {
+    'yeah right': -2.0, 'as if': -2.0, 'totally': -1.0, 'sure': -1.0, 'obviously': -1.0,
+    'great...': -2.0, 'nice...': -2.0, 'love that': -1.5, 'just perfect': -2.0, 'wonderful': -1.0,
+    'amazing': -1.0, 'sure thing': -1.0, 'can\'t wait': -1.5, '/s': -2.0, 'right...': -2.0,
+    'fantastic': -1.0, 'brilliant': -1.0, 'awesome': -1.0, 'lovely': -1.0, 'what a surprise': -1.0,
+    'what a joy': -1.0, 'so fun': -1.0, 'so helpful': -1.0, 'thanks a lot': -1.5, 'thanks for nothing': -2.0,
+    'good luck with that': -2.0, 'i bet': -1.0,
+}
 
 # Move set_page_config here, before any other Streamlit commands
 st.set_page_config(page_title="NYU PhD Career Advisor", layout="wide", initial_sidebar_state="expanded")
@@ -2499,48 +2539,7 @@ def main():
 
 # Handshake events are now loaded in the main data loading section
 
-# Add these function definitions before they're used (around line 800)
 
-def preprocess_text_for_sentiment(text):
-    """Expand contractions, normalize repeated chars, handle sarcasm cues, etc."""
-    if not isinstance(text, str):
-        return ""
-    # Expand contractions
-    text = contractions.fix(text)
-    # Lowercase
-    text = text.lower()
-    # Normalize repeated characters (e.g., sooooo -> soo)
-    text = re.sub(r'(.)\1{2,}', r'\1\1', text)
-    # Remove excessive punctuation (keep ! and ? for sentiment)
-    text = re.sub(r'([!?.])\1+', r'\1', text)
-    # Remove extra whitespace
-    text = re.sub(r'\s+', ' ', text).strip()
-    return text
-
-# --- Sarcasm Cue Detection ---
-SARCASM_CUES = [
-    'yeah right', 'as if', 'totally', 'sure', 'obviously', 'great...', 'nice...', 'love that',
-    'just perfect', 'wonderful', 'amazing', 'sure thing', 'can\'t wait', '/s', 'right...',
-    'fantastic', 'brilliant', 'awesome', 'lovely', 'what a surprise', 'what a joy', 'so fun',
-    'so helpful', 'thanks a lot', 'thanks for nothing', 'good luck with that', 'i bet',
-]
-
-def detect_sarcasm(text):
-    text = text.lower()
-    for cue in SARCASM_CUES:
-        if cue in text:
-            return True
-    return False
-
-# --- Custom VADER Lexicon for Sarcasm ---
-CUSTOM_VADER_LEXICON = {
-    'yeah right': -2.0, 'as if': -2.0, 'totally': -1.0, 'sure': -1.0, 'obviously': -1.0,
-    'great...': -2.0, 'nice...': -2.0, 'love that': -1.5, 'just perfect': -2.0, 'wonderful': -1.0,
-    'amazing': -1.0, 'sure thing': -1.0, 'can\'t wait': -1.5, '/s': -2.0, 'right...': -2.0,
-    'fantastic': -1.0, 'brilliant': -1.0, 'awesome': -1.0, 'lovely': -1.0, 'what a surprise': -1.0,
-    'what a joy': -1.0, 'so fun': -1.0, 'so helpful': -1.0, 'thanks a lot': -1.5, 'thanks for nothing': -2.0,
-    'good luck with that': -2.0, 'i bet': -1.0,
-}
 
 # Load data globally
 try:
