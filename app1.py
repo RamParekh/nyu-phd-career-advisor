@@ -600,6 +600,10 @@ def load_local_data():
     
     # For local development, prioritize local files
     print("📁 Loading data from local files...")
+    print(f"🔍 DEBUG: Current working directory: {os.getcwd()}")
+    print(f"🔍 DEBUG: Data folder exists: {os.path.exists('data')}")
+    if os.path.exists('data'):
+        print(f"🔍 DEBUG: Data folder contents: {os.listdir('data')}")
     
     # Load NYU career data
     try:
@@ -1124,7 +1128,7 @@ def get_representative_quotes(df, group, theme, sentiment_threshold=0.1, n=2):
     for _, row in quotes.iterrows():
         sentiment_icon = "😊" if row['Sentiment_Score'] > 0.1 else "😐" if row['Sentiment_Score'] > -0.1 else "😟"
         # Increase text length limit to 300 characters
-        comment_text = str(row['Comments'])
+        comment_text = str(row[comments_column])
         if len(comment_text) > 300:
             comment_text = comment_text[:300] + "..."
         result.append({
@@ -1145,15 +1149,16 @@ else:
 # ADD CONSOLE OUTPUT HERE (after theme_sentiments is defined)
 if sentiment_df is not None:
     sarcasm_count, sarcasm_percent = sarcasm_macro_count(sentiment_df)
-    print(f"\n=== SENTIMENT ANALYSIS CONSOLE OUTPUT ===")
-    print(f" Sarcastic Comments Detected: {sarcasm_count} ({sarcasm_percent:.1f}% of all comments)")
-    
-
+    print(f"\n{'='*60}")
+    print(f"🎭 SENTIMENT ANALYSIS CONSOLE OUTPUT")
+    print(f"{'='*60}")
+    print(f"📊 Sarcastic Comments Detected: {sarcasm_count} ({sarcasm_percent:.1f}% of all comments)")
     
     if model_evaluation:
-        print(f"\n📊 Model Performance Analysis:")
+        print(f"\n📈 Model Performance Analysis:")
+        print(f"{'─'*40}")
         for model_name, stats in model_evaluation['model_stats'].items():
-            print(f"  {model_name}:")
+            print(f"  🔹 {model_name}:")
             print(f"    • Mean Sentiment: {stats['mean_sentiment']:.3f}")
             print(f"    • Coverage: {stats['coverage']:.1%}")
             print(f"    • Confidence: {stats['confidence']:.3f}")
@@ -1163,6 +1168,7 @@ if sentiment_df is not None:
         
         if model_evaluation['model_consistency']:
             print(f"\n🤝 Model Agreement:")
+            print(f"{'─'*20}")
             for consistency_name, agreement_rate in model_evaluation['model_consistency'].items():
                 print(f"    • {consistency_name}: {agreement_rate:.1%}")
         
@@ -1175,12 +1181,14 @@ if sentiment_df is not None:
     
     if sentiment_scores:
         print(f"\n🎯 Sentiment Scores by Major Academic Group:")
+        print(f"{'─'*45}")
         for group, data in sentiment_scores.items():
             sentiment_emoji = "😊" if data['average_sentiment'] > 0.1 else "😐" if data['average_sentiment'] > -0.1 else "😟"
             print(f"    {sentiment_emoji} {group}: {data['average_sentiment']:.3f} ({data['comment_count']} comments)")
     
     if theme_sentiments:
         print(f"\n🎯 Thematic Sentiment Analysis:")
+        print(f"{'─'*30}")
         total_themes_found = 0
         for group, themes in theme_sentiments.items():
             if themes:  # Only show groups that have themes
@@ -1198,7 +1206,9 @@ if sentiment_df is not None:
         else:
             print(f"    ✅ Found {total_themes_found} theme categories with sentiment data")
     
-    print(f"\n=== END SENTIMENT ANALYSIS ===")
+    print(f"\n{'='*60}")
+    print(f"🏁 END SENTIMENT ANALYSIS")
+    print(f"{'='*60}")
 
 def get_sentiment_insights(selected_division, sentiment_scores):
     """Generate sentiment insights for career recommendations."""
@@ -1232,12 +1242,11 @@ def get_sentiment_insights(selected_division, sentiment_scores):
             model_info += "• **Recommendation**: Install VADER for improved accuracy\n"
         
         return f"""
-        {model_info}
-        
-        **Sentiment Analysis for {major_group}:**
-        - Average Sentiment Score: {avg_sentiment:.3f} (based on {count} comments)
-        - Sentiment Range: {sentiment_data['sentiment_range'][0]:.3f} to {sentiment_data['sentiment_range'][1]:.3f}
-        - Career Insight: {sentiment_insight}
+{model_info}
+**Sentiment Analysis for {major_group}:**
+• **Average Sentiment Score**: {avg_sentiment:.3f} (based on {count} comments)
+• **Sentiment Range**: {sentiment_data['sentiment_range'][0]:.3f} to {sentiment_data['sentiment_range'][1]:.3f}
+• **Career Insight**: {sentiment_insight}
         """
     
     return f"No sentiment data available for {major_group}."
@@ -1287,7 +1296,7 @@ def get_theme_insights_for_division(selected_division, theme_sentiments, process
                 quotes_section.append(f"**{theme.title()}**: {quote['icon']} \"{quote['text']}\"")
     
     # Combine insights and quotes
-    result = "**Thematic Analysis for " + major_group + ":**\n"
+    result = f"**Thematic Analysis for {major_group}:**\n"
     result += "\n".join(insights)
     
     if quotes_section:
@@ -2543,10 +2552,31 @@ def main():
 
 # Load data globally
 try:
+    print("🔍 DEBUG: Starting data loading process...")
+    print(f"🔍 DEBUG: Current working directory: {os.getcwd()}")
+    print(f"🔍 DEBUG: Checking if data folder exists: {os.path.exists('data')}")
+    if os.path.exists('data'):
+        print(f"🔍 DEBUG: Data folder contents: {os.listdir('data')}")
+    
+    # Check if we have Streamlit secrets
+    try:
+        if 'data_files' in st.secrets:
+            print("🔍 DEBUG: Found Streamlit secrets with data_files")
+            print(f"🔍 DEBUG: Available secret keys: {list(st.secrets['data_files'].keys())}")
+        else:
+            print("🔍 DEBUG: No data_files in Streamlit secrets")
+    except Exception as e:
+        print(f"🔍 DEBUG: Error checking secrets: {e}")
+    
     all_data = load_data_once()
     df = all_data.get('nyu_data', None)
     handshake_events_df = all_data.get('handshake_events', pd.DataFrame())
     sentiment_df = all_data.get('sentiment_data', None)
+    
+    print(f"🔍 DEBUG: Data loading results:")
+    print(f"  - NYU data: {'✅' if df is not None else '❌'} ({len(df) if df is not None else 0} records)")
+    print(f"  - Handshake events: {'✅' if not handshake_events_df.empty else '❌'} ({len(handshake_events_df)} records)")
+    print(f"  - Sentiment data: {'✅' if sentiment_df is not None else '❌'} ({len(sentiment_df) if sentiment_df is not None else 0} records)")
     
     if df is None:
         print("❌ Could not load data from any source")
