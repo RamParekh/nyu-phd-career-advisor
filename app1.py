@@ -547,8 +547,34 @@ st.sidebar.markdown("""
 3. Review the personalized advice and job postings.
 4. Use the feedback section to help us improve!
 
-
 """)
+
+# Add feedback management section to sidebar
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 📊 Feedback Management")
+
+# Show feedback count if available
+if 'feedback_data' in st.session_state and len(st.session_state.feedback_data) > 0:
+    st.sidebar.success(f"📝 {len(st.session_state.feedback_data)} feedback entries collected")
+    
+    # Export all feedback button
+    if st.sidebar.button("📥 Export All Feedback"):
+        feedback_df = pd.DataFrame(st.session_state.feedback_data)
+        csv = feedback_df.to_csv(index=False)
+        st.sidebar.download_button(
+            label="💾 Download CSV",
+            data=csv,
+            file_name=f"nyu_career_feedback_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            mime="text/csv"
+        )
+    
+    # Clear feedback button
+    if st.sidebar.button("🗑️ Clear All Feedback"):
+        st.session_state.feedback_data = []
+        st.sidebar.success("✅ Feedback cleared!")
+        st.rerun()
+else:
+    st.sidebar.info("📝 No feedback collected yet")
 
 # Function to ensure model is loaded
 def ensure_model_loaded():
@@ -2480,7 +2506,51 @@ def career_recommendations_tab(advisor):
                     )
 
                 if st.button("Submit Feedback"):
-                    st.success("✅ Thanks for your feedback!")
+                    # Validate feedback submission
+                    if feedback:
+                        # Create feedback summary
+                        feedback_summary = f"""
+**Feedback Submitted:**
+- **Helpfulness**: {feedback}
+- **Comments**: {feedback_comments if feedback_comments else 'None'}
+"""
+                        
+                        if feedback == "No" and 'feedback_issues' in locals():
+                            feedback_summary += f"- **Issues**: {', '.join(feedback_issues) if feedback_issues else 'None'}"
+                        
+                        # Show success message with feedback summary
+                        st.success("✅ Thanks for your feedback!")
+                        st.info("**Your feedback has been recorded:**")
+                        st.markdown(feedback_summary)
+                        
+                        # Store feedback in session state for potential export
+                        if 'feedback_data' not in st.session_state:
+                            st.session_state.feedback_data = []
+                        
+                        feedback_entry = {
+                            'timestamp': pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S'),
+                            'helpfulness': feedback,
+                            'comments': feedback_comments if feedback_comments else 'None',
+                            'issues': ', '.join(feedback_issues) if feedback == "No" and 'feedback_issues' in locals() else 'None'
+                        }
+                        st.session_state.feedback_data.append(feedback_entry)
+                        
+                        # Show export option
+                        if len(st.session_state.feedback_data) > 0:
+                            st.info("💡 **Export Feedback**: You can export all feedback data using the button below.")
+                            if st.button("📊 Export Feedback Data"):
+                                # Convert feedback data to DataFrame
+                                feedback_df = pd.DataFrame(st.session_state.feedback_data)
+                                # Create CSV for download
+                                csv = feedback_df.to_csv(index=False)
+                                st.download_button(
+                                    label="📥 Download Feedback CSV",
+                                    data=csv,
+                                    file_name=f"nyu_career_feedback_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                                    mime="text/csv"
+                                )
+                    else:
+                        st.warning("⚠️ Please select a feedback option before submitting.")
             else:
                 st.warning("No recommendations could be generated. Please check your inputs.")
         else:
