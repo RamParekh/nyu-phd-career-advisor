@@ -2236,7 +2236,6 @@ def career_recommendations_tab(advisor):
         """)
     else:
         st.success("🤖 **Career Recommendations Enabled**")
-        st.info("💡 Personalized career advice will be generated using AI (API tokens will be used)")
     
     st.info("Click 'Get Career Recommendations' to generate personalized advice.")
 
