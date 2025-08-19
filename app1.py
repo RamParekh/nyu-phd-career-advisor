@@ -2276,45 +2276,6 @@ def career_recommendations_tab(advisor):
     funding = st.text_input("Funding Status (e.g., departmental funding, self-funded)", help="How is your PhD funded?")
     desirability = st.text_input("Desirability (e.g., how in-demand your field or profile is)", help="How in-demand is your field or profile?")
 
-    # --- Feedback section: always visible for user input ---
-    st.markdown("---")
-    st.markdown("<h3 style='margin-top: 30px;'>📝 Feedback</h3>", unsafe_allow_html=True)
-    st.markdown("We'd love to hear from you. Your feedback helps us improve future recommendations!")
-
-    # Simple feedback form without session state
-    feedback = st.radio(
-        "Did you find this app helpful so far?",
-        ["Yes", "Somewhat", "No"],
-        horizontal=True
-    )
-
-    feedback_comments = st.text_area(
-        "Additional Comments (optional)",
-        placeholder="What could be improved? Any specific feedback is helpful."
-    )
-
-    # Only show the multiselect if "No" is selected
-    if feedback == "No":
-        feedback_issues = st.multiselect(
-            "What didn't work well? (Select all that apply)",
-            [
-                "Not relevant to my goals",
-                "Too generic / vague",
-                "Didn't use my data effectively",
-                "Too academic / not practical",
-                "Wrong assumptions made",
-                "Formatting / structure",
-                "Missing key suggestions",
-                "Other"
-            ],
-            help="Choose all that apply"
-        )
-
-    if st.button("Submit Feedback"):
-        st.success("✅ Thanks for your feedback!")
-
-    st.markdown("---")
-    
     # --- Disable button until required fields are filled ---
     can_recommend = user_goals.strip() and user_tech_skills.strip()
     if not can_recommend:
@@ -2535,6 +2496,45 @@ def career_recommendations_tab(advisor):
             2. 🔄 Click "Get Career Recommendations" again
             3. 🤖 AI will generate personalized advice based on your profile
             """)
+
+    # --- Feedback section: always visible below recommendations button ---
+    st.markdown("---")
+    st.markdown("<h3 style='margin-top: 30px;'>📝 Feedback</h3>", unsafe_allow_html=True)
+    st.markdown("We'd love to hear from you. Your feedback helps us improve future recommendations!")
+
+    # Simple feedback form without session state
+    feedback = st.radio(
+        "Did you find this app helpful so far?",
+        ["Yes", "Somewhat", "No"],
+        horizontal=True
+    )
+
+    feedback_comments = st.text_area(
+        "Additional Comments (optional)",
+        placeholder="What could be improved? Any specific feedback is helpful."
+    )
+
+    # Only show the multiselect if "No" is selected
+    if feedback == "No":
+        feedback_issues = st.multiselect(
+            "What didn't work well? (Select all that apply)",
+            [
+                "Not relevant to my goals",
+                "Too generic / vague",
+                "Didn't use my data effectively",
+                "Too academic / not practical",
+                "Wrong assumptions made",
+                "Formatting / structure",
+                "Missing key suggestions",
+                "Other"
+            ],
+            help="Choose all that apply"
+        )
+
+    if st.button("Submit Feedback"):
+        st.success("✅ Thanks for your feedback!")
+
+    st.markdown("---")
 
     if handshake_events_df is not None and not handshake_events_df.empty:
         event_types = handshake_events_df['Event Type Name'].unique().tolist()
