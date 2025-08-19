@@ -119,6 +119,14 @@ else:
     st.sidebar.warning("⚠️ Job API Keys Not Set")
     st.sidebar.info("💡 Replace the API keys in the code with your actual keys from developer.adzuna.com")
 
+# Show sector prediction model status
+if ML_AVAILABLE:
+    st.sidebar.success("✅ ML Libraries Available")
+    st.sidebar.info("🤖 Sector prediction using AI model + keyword fallback")
+else:
+    st.sidebar.warning("⚠️ ML Libraries Not Available")
+    st.sidebar.info("🔍 Sector prediction using enhanced keyword analysis")
+
 # Show VADER warning if not available
 if not VADER_AVAILABLE:
     st.sidebar.warning("⚠️ VADER not installed. Run: pip install vaderSentiment")
@@ -565,37 +573,90 @@ def predict_sector_from_text(user_goals, desired_industry, work_env):
         st.warning("No user goals provided for sector prediction")
         return "Unknown"
     
-    # Fallback prediction if ML libraries not available
-    if not ML_AVAILABLE:
-        text_input = f"{user_goals} {desired_industry} {work_env}".lower()
+    # Create comprehensive input text for analysis
+    input_text = f"{user_goals} {desired_industry} {work_env}".lower()
+    
+    # Enhanced keyword-based prediction with better logic
+    def analyze_text_for_sector(text):
+        # Academic/Research indicators
+        academic_keywords = [
+            'academic', 'research', 'professor', 'university', 'college', 'school',
+            'teaching', 'lecture', 'publish', 'paper', 'journal', 'conference',
+            'phd', 'doctoral', 'thesis', 'dissertation', 'scholar', 'faculty',
+            'postdoc', 'postdoctoral', 'tenure', 'academia', 'higher education'
+        ]
         
-        if any(word in text_input for word in ['academic', 'research', 'professor', 'university']):
-            return "Academic"
-        elif any(word in text_input for word in ['industry', 'company', 'business', 'corporate']):
-            return "Industry"
-        elif any(word in text_input for word in ['government', 'public', 'policy']):
-            return "Government"
-        elif any(word in text_input for word in ['non-profit', 'ngo', 'charity']):
-            return "Non-profit"
-        else:
-            return "Industry"  # Default to industry
+        # Industry/Corporate indicators
+        industry_keywords = [
+            'industry', 'company', 'business', 'corporate', 'startup', 'tech',
+            'product', 'development', 'engineering', 'software', 'data', 'analytics',
+            'consulting', 'finance', 'banking', 'investment', 'marketing', 'sales',
+            'operations', 'management', 'leadership', 'entrepreneur', 'founder'
+        ]
+        
+        # Government/Public sector indicators
+        government_keywords = [
+            'government', 'public', 'policy', 'federal', 'state', 'local',
+            'regulatory', 'compliance', 'law', 'legal', 'justice', 'defense',
+            'military', 'intelligence', 'diplomatic', 'foreign service', 'civil service',
+            'public health', 'environmental', 'energy', 'transportation', 'education'
+        ]
+        
+        # Non-profit/NGO indicators
+        nonprofit_keywords = [
+            'non-profit', 'nonprofit', 'ngo', 'charity', 'foundation', 'volunteer',
+            'social impact', 'community', 'advocacy', 'humanitarian', 'aid',
+            'environmental', 'conservation', 'healthcare', 'education', 'arts',
+            'cultural', 'religious', 'faith-based', 'social justice', 'equity'
+        ]
+        
+        # Healthcare indicators
+        healthcare_keywords = [
+            'healthcare', 'medical', 'hospital', 'clinic', 'patient', 'clinical',
+            'pharmaceutical', 'biotech', 'biomedical', 'nursing', 'therapy',
+            'public health', 'epidemiology', 'genetics', 'oncology', 'cardiology'
+        ]
+        
+        # Education indicators (K-12, not higher ed)
+        education_keywords = [
+            'k-12', 'elementary', 'middle school', 'high school', 'primary',
+            'secondary', 'curriculum', 'pedagogy', 'student teaching', 'classroom'
+        ]
+        
+        # Count keyword matches for each sector
+        scores = {
+            'Academic': sum(1 for word in academic_keywords if word in text),
+            'Industry': sum(1 for word in industry_keywords if word in text),
+            'Government': sum(1 for word in government_keywords if word in text),
+            'Non-profit': sum(1 for word in nonprofit_keywords if word in text),
+            'Healthcare': sum(1 for word in healthcare_keywords if word in text),
+            'Education': sum(1 for word in education_keywords if word in text)
+        }
+        
+        # Find the sector with the highest score
+        max_score = max(scores.values())
+        if max_score == 0:
+            return "Industry"  # Default only if no clear indicators
+        
+        # Return the sector with the highest score
+        best_sector = max(scores, key=scores.get)
+        return best_sector
     
-    # Load model fresh
-    text_sector_model = ensure_model_loaded()
+    # Try ML model first if available
+    if ML_AVAILABLE:
+        text_sector_model = ensure_model_loaded()
+        if text_sector_model is not None:
+            try:
+                prediction = text_sector_model.predict([input_text])[0]
+                return prediction
+            except Exception as e:
+                print(f"ML model prediction failed: {e}, falling back to keyword analysis")
+                # Fall through to keyword analysis
     
-    if text_sector_model is None:
-        st.error("Career sector prediction model is not loaded.")
-        return "Unknown"
-    
-    input_text = f"{user_goals} {desired_industry} {work_env}"
-    
-    try:
-        prediction = text_sector_model.predict([input_text])[0]
-        return prediction
-    except Exception as e:
-        st.error(f"Prediction error: {str(e)}")
-        st.sidebar.error(f"Detailed error: {str(e)}")
-        return "Unknown"
+    # Use enhanced keyword analysis as fallback
+    sector = analyze_text_for_sector(input_text)
+    print(f"🔍 Sector prediction for '{input_text[:100]}...': {sector}")
+    return sector
 
 # Data and model refresh buttons for development
 if st.sidebar.button("🔄 Refresh Data", help="Reload data from local files"):
