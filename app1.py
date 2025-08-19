@@ -108,14 +108,14 @@ if openai.api_key != "your-actual-openai-api-key-here":
     st.sidebar.success("✅ OpenAI API Key Configured")
     # Add checkbox to control OpenAI usage
     use_openai = st.sidebar.checkbox(
-        "🤖 Enable AI Career Recommendations", 
+        "🤖 Enable Career Recommendations", 
         value=False,
         help="Check this to use OpenAI for personalized career advice (uses API tokens)"
     )
     if use_openai:
-        st.sidebar.info("💡 AI recommendations enabled - tokens will be used")
+        st.sidebar.info("💡 Career recommendations enabled - tokens will be used")
     else:
-        st.sidebar.info("💡 AI recommendations disabled - using sample data")
+        st.sidebar.info("💡 Career recommendations disabled - no tokens used")
 else:
     use_openai = False
     st.sidebar.warning("⚠️ OpenAI API Key Not Set")
@@ -2248,17 +2248,17 @@ def career_recommendations_tab(advisor):
 
     # --- RECOMMENDATION GENERATION ---
     if not use_openai:
-        st.warning("🤖 **AI Recommendations Disabled**")
-        st.info("💡 Check the sidebar to enable AI-powered career recommendations (uses API tokens)")
+        st.warning("🤖 **Career Recommendations Disabled**")
+        st.info("💡 Check the sidebar to enable personalized career recommendations (uses API tokens)")
         st.markdown("""
-        **Sample Recommendations Available:**
+        **Available Features:**
         - Career path prediction using ML model
         - Sample RIASEC personality profile
-        - Basic career advice based on NYU data
+        - No personalized career advice (to save tokens)
         """)
     else:
-        st.success("🤖 **AI Recommendations Enabled**")
-        st.info("💡 AI-powered personalized career advice will be generated (API tokens will be used)")
+        st.success("🤖 **Career Recommendations Enabled**")
+        st.info("💡 Personalized career advice will be generated using AI (API tokens will be used)")
     
     st.info("Click 'Get Career Recommendations' to generate personalized advice.")
 
@@ -2423,12 +2423,12 @@ def career_recommendations_tab(advisor):
                     </div>
                     """, unsafe_allow_html=True)
 
-        # 3. Generate and display personalized recommendations
-        status_text.text("📋 Generating personalized career recommendations...")
-        progress_bar.progress(75)
-        
+                # 3. Generate and display personalized recommendations (only if AI is enabled)
         if use_openai:
-            with st.spinner("Generating your personalized recommendations with AI..."):
+            status_text.text("📋 Generating personalized career recommendations...")
+            progress_bar.progress(75)
+            
+            with st.spinner("Generating your personalized recommendations..."):
                 recommendations = advisor.generate_career_advice(
                     selected_division=selected_division,
                     school=user_school,
@@ -2453,40 +2453,14 @@ def career_recommendations_tab(advisor):
                     theme_sentiments=theme_sentiments,
                     processed_sentiment_df=processed_sentiment_df
                 )
-        else:
-            # Generate sample recommendations when AI is disabled
-            with st.spinner("Generating sample career recommendations..."):
-                recommendations = generate_sample_career_advice(
-                    selected_division=selected_division,
-                    school=user_school,
-                    citizenship=user_citizenship,
-                    income=user_income,
-                    user_goals=user_goals,
-                    user_tech_skills=user_tech_skills,
-                    work_env=work_env,
-                    research_interests=research_interests,
-                    desired_industry=desired_industry,
-                    work_life_balance=work_life_balance,
-                    mentorship_preference=mentorship_preference,
-                    cohort_stage=cohort_stage,
-                    skill_levels=skill_levels,
-                    job_function=job_function,
-                    financial_scholarships=financial_scholarships,
-                    funding=funding,
-                    desirability=desirability,
-                    user_riasec=riasec_scores,
-                    predicted_sector=predicted_sector
-                )
+            
             if recommendations:
                 # Complete the progress bar
                 progress_bar.progress(100)
                 status_text.text("✅ Recommendations complete!")
                 
                 st.markdown("### 📋 Your Personalized Career Recommendations")
-                if use_openai:
-                    st.markdown("*Generated with AI based on your profile and NYU data*")
-                else:
-                    st.markdown("*Generated with sample data (AI disabled to save tokens)*")
+                st.markdown("*Generated with AI based on your profile and NYU data*")
                 
                 # Create a beautiful recommendations container
                 st.markdown(f"""
@@ -2495,8 +2469,6 @@ def career_recommendations_tab(advisor):
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # Recommendations generated successfully
-
                 # --- Feedback section: only show after recommendations ---
                 st.markdown("<h3 style='margin-top: 30px;'> Feedback</h3>", unsafe_allow_html=True)
                 st.markdown("We'd love to hear from you. Your feedback helps us improve future recommendations!")
@@ -2534,6 +2506,18 @@ def career_recommendations_tab(advisor):
                     st.success("✅ Thanks for your feedback!")
             else:
                 st.warning("No recommendations could be generated. Please check your inputs.")
+        else:
+            # When AI is disabled, complete progress and show message
+            progress_bar.progress(100)
+            status_text.text("✅ Analysis complete!")
+            
+            st.info("💡 **Career Recommendations Disabled**")
+            st.markdown("""
+            To get personalized career recommendations:
+            1. ✅ Check the "Enable Career Recommendations" checkbox in the sidebar
+            2. 🔄 Click "Get Career Recommendations" again
+            3. 🤖 AI will generate personalized advice based on your profile
+            """)
 
     if handshake_events_df is not None and not handshake_events_df.empty:
         event_types = handshake_events_df['Event Type Name'].unique().tolist()
