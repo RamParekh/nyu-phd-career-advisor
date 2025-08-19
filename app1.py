@@ -105,7 +105,6 @@ if openai.api_key == "your-actual-openai-api-key-here":
 
 # Check if OpenAI API key is configured
 if openai.api_key != "your-actual-openai-api-key-here":
-    st.sidebar.success("✅ OpenAI API Key Configured")
     # Add checkbox to control OpenAI usage
     use_openai = st.sidebar.checkbox(
         "🤖 Enable Career Recommendations", 
@@ -123,7 +122,8 @@ else:
 
 # Show Adzuna API status
 if ADZUNA_APP_ID != "your-actual-adzuna-app-id-here" and ADZUNA_APP_KEY != "your-actual-adzuna-app-key-here":
-    st.sidebar.success("✅ Job API Keys Configured")
+    # Job API keys are configured (no message needed)
+    pass
 else:
     st.sidebar.warning("⚠️ Job API Keys Not Set")
     st.sidebar.info("💡 Replace the API keys in the code with your actual keys from developer.adzuna.com")
@@ -558,10 +558,7 @@ st.sidebar.markdown("""
 3. Review the personalized advice and job postings.
 4. Use the feedback section to help us improve!
 
-### ⚡ Performance Notes
-• **First run**: May take 10-30 seconds to load data and train models
-• **Subsequent runs**: Much faster due to caching
-• **Data is cached for 1 hour** to improve performance
+
 """)
 
 # Function to ensure model is loaded
@@ -667,15 +664,7 @@ def predict_sector_from_text(user_goals, desired_industry, work_env):
     print(f"🔍 Sector prediction for '{input_text[:100]}...': {sector}")
     return sector
 
-# Data and model refresh buttons for development
-if st.sidebar.button("🔄 Refresh Data", help="Reload data from local files"):
-    st.rerun()
 
-if st.sidebar.button("🤖 Refresh Model", help="Retrain the sector prediction model"):
-    st.rerun()
-
-st.sidebar.markdown("---")
-st.sidebar.markdown("**Questions or issues?**\nContact: [rp4230@nyu.edu](mailto:rp4230@nyu.edu)")
 
 # -----------------------------------------------------------------------------
 # Dataset loader (Modified to load NYU dataset directly) ----------------------
