@@ -111,10 +111,7 @@ if openai.api_key != "your-actual-openai-api-key-here":
         value=False,
         help="Check this to use OpenAI for personalized career advice (uses API tokens)"
     )
-    if use_openai:
-        st.sidebar.info("💡 Career recommendations enabled - tokens will be used")
-    else:
-        st.sidebar.info("💡 Career recommendations disabled - no tokens used")
+    # No info messages needed - checkbox state is clear
 else:
     use_openai = False
     st.sidebar.warning("⚠️ OpenAI API Key Not Set")
@@ -128,17 +125,9 @@ else:
     st.sidebar.warning("⚠️ Job API Keys Not Set")
     st.sidebar.info("💡 Replace the API keys in the code with your actual keys from developer.adzuna.com")
 
-# Show sector prediction model status
-if ML_AVAILABLE:
-    st.sidebar.success("✅ ML Libraries Available")
-    st.sidebar.info("🤖 Sector prediction using AI model + keyword fallback")
-else:
-    st.sidebar.warning("⚠️ ML Libraries Not Available")
-    st.sidebar.info("🔍 Sector prediction using enhanced keyword analysis")
 
-# Show VADER warning if not available
-if not VADER_AVAILABLE:
-    st.sidebar.warning("⚠️ VADER not installed. Run: pip install vaderSentiment")
+
+
 
 # -----------------------------------------------------------------------------
 # Local Data Loading Helper --------------------------------------------
