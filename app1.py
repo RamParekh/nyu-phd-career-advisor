@@ -105,8 +105,17 @@ if openai.api_key == "your-actual-openai-api-key-here":
 
 # Check if OpenAI API key is configured
 if openai.api_key != "your-actual-openai-api-key-here":
-    use_openai = True
     st.sidebar.success("✅ OpenAI API Key Configured")
+    # Add checkbox to control OpenAI usage
+    use_openai = st.sidebar.checkbox(
+        "🤖 Enable AI Career Recommendations", 
+        value=False,
+        help="Check this to use OpenAI for personalized career advice (uses API tokens)"
+    )
+    if use_openai:
+        st.sidebar.info("💡 AI recommendations enabled - tokens will be used")
+    else:
+        st.sidebar.info("💡 AI recommendations disabled - using sample data")
 else:
     use_openai = False
     st.sidebar.warning("⚠️ OpenAI API Key Not Set")
@@ -2107,6 +2116,130 @@ class NYUCareerAdvisor:
 # ----------------------------------------------------------------------------
 # Career Recommendations Tab
 # ----------------------------------------------------------------------------
+# Sample Data Generation Functions (when AI is disabled)
+# ----------------------------------------------------------------------------
+
+def generate_sample_riasec_scores(user_profile_text):
+    """Generate sample RIASEC scores based on user profile text."""
+    # Simple keyword-based scoring
+    text = user_profile_text.lower()
+    
+    scores = {
+        "Realistic": 3,      # Default scores
+        "Investigative": 4,
+        "Artistic": 3,
+        "Social": 4,
+        "Enterprising": 3,
+        "Conventional": 3
+    }
+    
+    # Adjust based on keywords
+    if any(word in text for word in ['research', 'analysis', 'data', 'technical']):
+        scores["Investigative"] += 1
+    if any(word in text for word in ['teaching', 'mentoring', 'helping', 'community']):
+        scores["Social"] += 1
+    if any(word in text for word in ['leadership', 'management', 'entrepreneur', 'business']):
+        scores["Enterprising"] += 1
+    if any(word in text for word in ['creative', 'design', 'art', 'writing']):
+        scores["Artistic"] += 1
+    if any(word in text for word in ['organization', 'planning', 'detail', 'structure']):
+        scores["Conventional"] += 1
+    if any(word in text for word in ['hands-on', 'practical', 'technical', 'building']):
+        scores["Realistic"] += 1
+    
+    # Ensure scores stay within 1-7 range
+    for key in scores:
+        scores[key] = max(1, min(7, scores[key]))
+    
+    return scores
+
+def generate_sample_career_advice(**kwargs):
+    """Generate sample career advice when AI is disabled."""
+    predicted_sector = kwargs.get('predicted_sector', 'Industry')
+    user_goals = kwargs.get('user_goals', '')
+    desired_industry = kwargs.get('desired_industry', 'Industry')
+    work_env = kwargs.get('work_env', 'Collaborative')
+    
+    # Generate sector-specific advice
+    sector_advice = {
+        'Academic': f"""
+        <h4>🎓 Academic Career Path</h4>
+        <p>Based on your goals: <em>"{user_goals}"</em></p>
+        <ul>
+            <li><strong>Research Focus:</strong> Develop a strong publication record in your field</li>
+            <li><strong>Teaching Experience:</strong> Gain experience as a TA or instructor</li>
+            <li><strong>Networking:</strong> Attend conferences and build academic connections</li>
+            <li><strong>Funding:</strong> Apply for grants and fellowships early</li>
+            <li><strong>Timeline:</strong> Start job applications 12-18 months before graduation</li>
+        </ul>
+        """,
+        'Industry': f"""
+        <h4>🏢 Industry Career Path</h4>
+        <p>Based on your goals: <em>"{user_goals}"</em></p>
+        <ul>
+            <li><strong>Skills Development:</strong> Focus on practical, industry-relevant skills</li>
+            <li><strong>Internships:</strong> Gain industry experience through summer internships</li>
+            <li><strong>Networking:</strong> Connect with alumni in your target industry</li>
+            <li><strong>Portfolio:</strong> Build a portfolio of relevant projects</li>
+            <li><strong>Job Search:</strong> Start networking 6-12 months before graduation</li>
+        </ul>
+        """,
+        'Government': f"""
+        <h4>🏛️ Government Career Path</h4>
+        <p>Based on your goals: <em>"{user_goals}"</em></p>
+        <ul>
+            <li><strong>Policy Knowledge:</strong> Stay informed about current policy issues</li>
+            <li><strong>Public Service:</strong> Consider internships in government agencies</li>
+            <li><strong>Networking:</strong> Connect with policy professionals</li>
+            <li><strong>Skills:</strong> Develop analytical and communication skills</li>
+            <li><strong>Applications:</strong> Government hiring can take 6+ months</li>
+        </ul>
+        """,
+        'Non-profit': f"""
+        <h4>❤️ Non-profit Career Path</h4>
+        <p>Based on your goals: <em>"{user_goals}"</em></p>
+        <ul>
+            <li><strong>Mission Alignment:</strong> Find organizations that match your values</li>
+            <li><strong>Volunteer Experience:</strong> Gain relevant experience through volunteering</li>
+            <li><strong>Networking:</strong> Connect with non-profit professionals</li>
+            <li><strong>Skills:</strong> Develop grant writing and program management skills</li>
+            <li><strong>Funding:</strong> Understand the organization's funding sources</li>
+        </ul>
+        """
+    }
+    
+    # Get advice for predicted sector, fallback to desired industry
+    sector = predicted_sector if predicted_sector in sector_advice else desired_industry
+    advice = sector_advice.get(sector, sector_advice['Industry'])
+    
+    # Add general advice
+    general_advice = f"""
+    <h4>💡 General Career Development Tips</h4>
+    <ul>
+        <li><strong>Work Environment:</strong> Your preference for {work_env} work suggests focusing on roles that offer this flexibility</li>
+        <li><strong>Skills Gap Analysis:</strong> Identify skills needed for your target roles and develop them</li>
+        <li><strong>Mentorship:</strong> Seek mentors in your target field</li>
+        <li><strong>Professional Development:</strong> Attend workshops and training sessions</li>
+        <li><strong>Online Presence:</strong> Build a professional LinkedIn profile</li>
+    </ul>
+    
+    <div style="background: #f0f8ff; padding: 15px; border-radius: 8px; margin: 20px 0;">
+        <h5>🔍 Next Steps</h5>
+        <ol>
+            <li>Refine your career goals based on this analysis</li>
+            <li>Identify 3-5 target organizations or roles</li>
+            <li>Develop a timeline for your job search</li>
+            <li>Build relevant skills and experience</li>
+            <li>Start networking in your target field</li>
+        </ol>
+    </div>
+    
+    <p><em>💡 <strong>Note:</strong> This is sample advice. Enable AI recommendations in the sidebar for personalized analysis using your actual data.</em></p>
+    """
+    
+    return advice + general_advice
+
+# ----------------------------------------------------------------------------
 def career_recommendations_tab(advisor):
     st.markdown("<h1 class='header'>Career Recommendations</h1>", unsafe_allow_html=True)
     if df is None:
@@ -2114,6 +2247,19 @@ def career_recommendations_tab(advisor):
         return
 
     # --- RECOMMENDATION GENERATION ---
+    if not use_openai:
+        st.warning("🤖 **AI Recommendations Disabled**")
+        st.info("💡 Check the sidebar to enable AI-powered career recommendations (uses API tokens)")
+        st.markdown("""
+        **Sample Recommendations Available:**
+        - Career path prediction using ML model
+        - Sample RIASEC personality profile
+        - Basic career advice based on NYU data
+        """)
+    else:
+        st.success("🤖 **AI Recommendations Enabled**")
+        st.info("💡 AI-powered personalized career advice will be generated (API tokens will be used)")
+    
     st.info("Click 'Get Career Recommendations' to generate personalized advice.")
 
     if "academic_division" not in df.columns:
@@ -2205,25 +2351,24 @@ def career_recommendations_tab(advisor):
         # Show immediate feedback
         st.success("✅ Career prediction complete!")
         
-        with st.spinner("Analyzing your personality profile..."):
-            riasec_scores = advisor.infer_riasec_scores_via_gpt(user_profile_text)
-        
-        # Always show RIASEC visualization, with fallback if API fails
-        if not riasec_scores:
-            st.warning("⚠️ Could not analyze personality profile. Using default analysis.")
-            riasec_scores = {
-                "Realistic": 4,
-                "Investigative": 5,
-                "Artistic": 3,
-                "Social": 4,
-                "Enterprising": 3,
-                "Conventional": 2
-            }
-            st.markdown("### 🧠 Your RIASEC Personality Profile")
-            st.markdown("*Using default analysis*")
+        # Generate RIASEC scores based on AI availability
+        if use_openai:
+            with st.spinner("Analyzing your personality profile with AI..."):
+                riasec_scores = advisor.infer_riasec_scores_via_gpt(user_profile_text)
+            
+            if riasec_scores:
+                st.markdown("### 🧠 Your RIASEC Personality Profile")
+                st.markdown("*Powered by GPT-4 Analysis*")
+            else:
+                st.warning("⚠️ AI analysis failed. Using sample profile.")
+                riasec_scores = generate_sample_riasec_scores(user_profile_text)
+                st.markdown("### 🧠 Your RIASEC Personality Profile")
+                st.markdown("*Using sample analysis (AI was unavailable)*")
         else:
+            # Use sample RIASEC scores when AI is disabled
+            riasec_scores = generate_sample_riasec_scores(user_profile_text)
             st.markdown("### 🧠 Your RIASEC Personality Profile")
-            st.markdown("*Powered by GPT-4 Analysis*")
+            st.markdown("*Using sample analysis (AI disabled to save tokens)*")
             
             # Create columns for the visualization
             col1, col2 = st.columns([2, 1])
@@ -2282,38 +2427,66 @@ def career_recommendations_tab(advisor):
         status_text.text("📋 Generating personalized career recommendations...")
         progress_bar.progress(75)
         
-        with st.spinner("Generating your personalized recommendations..."):
-            recommendations = advisor.generate_career_advice(
-                selected_division=selected_division,
-                school=user_school,
-                citizenship=user_citizenship,
-                income=user_income,
-                user_goals=user_goals,
-                user_tech_skills=user_tech_skills,
-                work_env=work_env,
-                research_interests=research_interests,
-                desired_industry=desired_industry,
-                work_life_balance=work_life_balance,
-                mentorship_preference=mentorship_preference,
-                cohort_stage=cohort_stage,
-                family_location="",
-                skill_levels=skill_levels,
-                job_function=job_function,
-                financial_scholarships=financial_scholarships,
-                funding=funding,
-                desirability=desirability,
-                user_riasec=riasec_scores,
-                sentiment_scores=sentiment_scores,
-                theme_sentiments=theme_sentiments,
-                processed_sentiment_df=processed_sentiment_df
-            )
+        if use_openai:
+            with st.spinner("Generating your personalized recommendations with AI..."):
+                recommendations = advisor.generate_career_advice(
+                    selected_division=selected_division,
+                    school=user_school,
+                    citizenship=user_citizenship,
+                    income=user_income,
+                    user_goals=user_goals,
+                    user_tech_skills=user_tech_skills,
+                    work_env=work_env,
+                    research_interests=research_interests,
+                    desired_industry=desired_industry,
+                    work_life_balance=work_life_balance,
+                    mentorship_preference=mentorship_preference,
+                    cohort_stage=cohort_stage,
+                    family_location="",
+                    skill_levels=skill_levels,
+                    job_function=job_function,
+                    financial_scholarships=financial_scholarships,
+                    funding=funding,
+                    desirability=desirability,
+                    user_riasec=riasec_scores,
+                    sentiment_scores=sentiment_scores,
+                    theme_sentiments=theme_sentiments,
+                    processed_sentiment_df=processed_sentiment_df
+                )
+        else:
+            # Generate sample recommendations when AI is disabled
+            with st.spinner("Generating sample career recommendations..."):
+                recommendations = generate_sample_career_advice(
+                    selected_division=selected_division,
+                    school=user_school,
+                    citizenship=user_citizenship,
+                    income=user_income,
+                    user_goals=user_goals,
+                    user_tech_skills=user_tech_skills,
+                    work_env=work_env,
+                    research_interests=research_interests,
+                    desired_industry=desired_industry,
+                    work_life_balance=work_life_balance,
+                    mentorship_preference=mentorship_preference,
+                    cohort_stage=cohort_stage,
+                    skill_levels=skill_levels,
+                    job_function=job_function,
+                    financial_scholarships=financial_scholarships,
+                    funding=funding,
+                    desirability=desirability,
+                    user_riasec=riasec_scores,
+                    predicted_sector=predicted_sector
+                )
             if recommendations:
                 # Complete the progress bar
                 progress_bar.progress(100)
                 status_text.text("✅ Recommendations complete!")
                 
                 st.markdown("### 📋 Your Personalized Career Recommendations")
-                st.markdown("*Generated based on your profile and NYU data*")
+                if use_openai:
+                    st.markdown("*Generated with AI based on your profile and NYU data*")
+                else:
+                    st.markdown("*Generated with sample data (AI disabled to save tokens)*")
                 
                 # Create a beautiful recommendations container
                 st.markdown(f"""
