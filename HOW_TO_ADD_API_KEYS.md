@@ -1,14 +1,14 @@
 # How to Add Your API Keys
 
-## Step 1: Get Your Free API Keys
+## Step 1: Get Your API Keys
 
-### Adzuna (Job Search):
+### For Adzuna (Job Search):
 1. Go to [https://developer.adzuna.com/](https://developer.adzuna.com/)
 2. Sign up for a free account
 3. Create a new application
 4. Copy your **App ID** and **App Key**
 
-### OpenAI (Career Recommendations):
+### For OpenAI (Career Recommendations):
 1. Go to [https://platform.openai.com/api-keys](https://platform.openai.com/api-keys)
 2. Sign in to your OpenAI account
 3. Create a new API key
@@ -33,7 +33,7 @@ ADZUNA_APP_ID = "12345678"  # Your actual App ID
 ADZUNA_APP_KEY = "abcdef123456789"  # Your actual App Key
 
 # Replace this with your actual OpenAI API key
-openai.api_key = "sk-1234567890abcdef..."  # Your actual OpenAI API Key
+openai.api_key = "sk-1234567890abcdef1234567890abcdef1234567890abcdef"  # Your actual OpenAI key
 ```
 
 ## Step 3: Save and Deploy
@@ -43,24 +43,16 @@ openai.api_key = "sk-1234567890abcdef..."  # Your actual OpenAI API Key
 4. The job search will now work!
 
 ## What You'll See:
-- **Adzuna (Job Search)**:
-  - **Before**: Warning "Job API Keys Not Set"
-  - **After**: Success "Job API Keys Configured"
-  - **Job Postings tab**: Will show real job listings instead of sample data
-
-- **OpenAI (Career Recommendations)**:
-  - **Before**: Warning "OpenAI API Key Not Set"
-  - **After**: Success "OpenAI API Key Configured"
-  - **Career recommendations**: Will use AI-powered insights instead of fallback data
+- **Before**: Warnings "Job API Keys Not Set" and "OpenAI API Key Not Set"
+- **After**: Success "Job API Keys Configured" and "OpenAI API Key Configured"
+- **Job Postings tab**: Will show real job listings instead of sample data
+- **Career Recommendations**: Will use AI-powered personalized advice
 
 ## Example of Working Keys:
 ```python
-# Adzuna (Job Search)
 ADZUNA_APP_ID = "a1b2c3d4"
 ADZUNA_APP_KEY = "e5f6g7h8i9j0k1l2m3n4o5p6"
-
-# OpenAI (Career Recommendations)
-openai.api_key = "sk-1234567890abcdefghijklmnopqrstuvwxyz"
+openai.api_key = "sk-1234567890abcdef1234567890abcdef1234567890abcdef"
 ```
 
 **Note**: Keep your API keys private and don't share them publicly!
