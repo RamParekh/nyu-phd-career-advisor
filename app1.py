@@ -97,16 +97,24 @@ ADZUNA_APP_KEY = "cf15da52bcd7e5585e5cd2d7fea154e5"  # Replace this
 # OpenAI API Key - Add your actual key here
 # Get your key from: https://platform.openai.com/api-keys
 
-# Replace this with your actual OpenAI API key
-openai.api_key = "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"  # Replace this
-
-# Fallback to environment variables if needed
-import os
-if openai.api_key == "your-actual-openai-api-key-here":
+# OpenAI API Key - Load from Streamlit secrets for security
+try:
+    # Try to get API key from Streamlit secrets first
+    openai.api_key = st.secrets["api_keys"]["openai"]
+    print("✅ OpenAI API key loaded from Streamlit secrets")
+except:
+    # Fallback to environment variable or placeholder
     openai.api_key = os.getenv("OPENAI_API_KEY", "your-openai-api-key-here")
+    if openai.api_key == "your-openai-api-key-here":
+        print("⚠️ OpenAI API key not configured - check Streamlit secrets or environment variables")
+    else:
+        print("✅ OpenAI API key loaded from environment variable")
+
+# Import os for environment variable fallback
+import os
 
 # Check if OpenAI API key is configured
-if openai.api_key != "your-actual-openai-api-key-here":
+if openai.api_key != "your-openai-api-key-here":
     # Add checkbox to control OpenAI usage
     use_openai = st.sidebar.checkbox(
         "🤖 Enable Career Recommendations", 
@@ -2484,12 +2492,14 @@ def career_recommendations_tab(advisor):
                 feedback = st.radio(
                     "Did you find these career recommendations helpful?",
                     ["Yes", "Somewhat", "No"],
-                    horizontal=True
+                    horizontal=True,
+                    key="feedback_radio_recommendations"
                 )
 
                 feedback_comments = st.text_area(
                     "Additional Comments (optional)",
-                    placeholder="What could be improved? Any specific feedback is helpful."
+                    placeholder="What could be improved? Any specific feedback is helpful.",
+                    key="feedback_comments_recommendations"
                 )
 
                 # Only show the multiselect if "No" is selected
@@ -2506,10 +2516,11 @@ def career_recommendations_tab(advisor):
                             "Missing key suggestions",
                             "Other"
                         ],
-                        help="Choose all that apply"
+                        help="Choose all that apply",
+                        key="feedback_issues_recommendations"
                     )
 
-                if st.button("Submit Feedback"):
+                if st.button("Submit Feedback", key="submit_feedback_recommendations"):
                     st.success("✅ Thanks for your feedback!")
             else:
                 st.warning("No recommendations could be generated. Please check your inputs.")
@@ -2535,12 +2546,14 @@ def career_recommendations_tab(advisor):
     feedback = st.radio(
         "Did you find this app helpful so far?",
         ["Yes", "Somewhat", "No"],
-        horizontal=True
+        horizontal=True,
+        key="feedback_radio_main"
     )
 
     feedback_comments = st.text_area(
         "Additional Comments (optional)",
-        placeholder="What could be improved? Any specific feedback is helpful."
+        placeholder="What could be improved? Any specific feedback is helpful.",
+        key="feedback_comments_main"
     )
 
     # Only show the multiselect if "No" is selected
@@ -2557,10 +2570,11 @@ def career_recommendations_tab(advisor):
                 "Missing key suggestions",
                 "Other"
             ],
-            help="Choose all that apply"
+            help="Choose all that apply",
+            key="feedback_issues_main"
         )
 
-    if st.button("Submit Feedback"):
+    if st.button("Submit Feedback", key="submit_feedback_main"):
         # Validate feedback submission
         if feedback:
             # Store feedback in session state
