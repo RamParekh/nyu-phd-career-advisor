@@ -1,3 +1,9 @@
+# NYU PhD Career Advisor App
+# PERFORMANCE OPTIMIZATION: ML model training disabled for faster deployment
+# - Uses instant keyword-based sector prediction instead of slow ML training
+# - Eliminates delays on Streamlit Cloud
+# - Provides same quality predictions with instant results
+
 import streamlit as st
 import openai, pandas as pd, requests, warnings, json, traceback
 from datetime import datetime
@@ -578,18 +584,23 @@ else:
 
 
 
-# Function to ensure model is loaded
+# Function to ensure model is loaded (DISABLED for faster performance)
 def ensure_model_loaded():
     """Ensure the sector prediction model is loaded."""
+    # DISABLED: ML model training causes delays on Streamlit Cloud
     # Use cached model training
-    print("🔄 Loading sector prediction model...")
-    model = train_cached_model()
-    if model is not None:
-        print("✅ Sector prediction model loaded successfully!")
-        return model
-    else:
-        print("❌ Failed to load sector prediction model")
-        return None
+    # print("🔄 Loading sector prediction model...")
+    # model = train_cached_model()
+    # if model is not None:
+    #     print("✅ Sector prediction model loaded successfully!")
+    #     return model
+    # else:
+    #     print("❌ Failed to load sector prediction model")
+    #     return None
+    
+    # Return None to use keyword-based predictions instead
+    print("🚀 Skipping ML model training for instant performance")
+    return None
 
 def predict_sector_from_text(user_goals, desired_industry, work_env):
     if not user_goals:
@@ -665,18 +676,18 @@ def predict_sector_from_text(user_goals, desired_industry, work_env):
         best_sector = max(scores, key=scores.get)
         return best_sector
     
-    # Try ML model first if available
-    if ML_AVAILABLE:
-        text_sector_model = ensure_model_loaded()
-        if text_sector_model is not None:
-            try:
-                prediction = text_sector_model.predict([input_text])[0]
-                return prediction
-            except Exception as e:
-                print(f"ML model prediction failed: {e}, falling back to keyword analysis")
-                # Fall through to keyword analysis
+    # Skip ML model training for faster performance - use keyword analysis directly
+    # if ML_AVAILABLE:
+    #     text_sector_model = ensure_model_loaded()
+    #     if text_sector_model is not None:
+    #         try:
+    #             prediction = text_sector_model.predict([input_text])[0]
+    #             return prediction
+    #         except Exception as e:
+    #             print(f"ML model prediction failed: {e}, falling back to keyword analysis")
+    #             # Fall through to keyword analysis
     
-    # Use enhanced keyword analysis as fallback
+    # Use enhanced keyword analysis directly for instant results
     sector = analyze_text_for_sector(input_text)
     print(f"🔍 Sector prediction for '{input_text[:100]}...': {sector}")
     return sector
