@@ -102,7 +102,8 @@ try:
     # Try to get API key from Streamlit secrets first
     openai.api_key = st.secrets["api_keys"]["openai"]
     print("✅ OpenAI API key loaded from Streamlit secrets")
-except:
+except Exception as e:
+    print(f"⚠️ Could not load from Streamlit secrets: {e}")
     # Fallback to environment variable or placeholder
     openai.api_key = os.getenv("OPENAI_API_KEY", "your-openai-api-key-here")
     if openai.api_key == "your-openai-api-key-here":
@@ -114,7 +115,7 @@ except:
 import os
 
 # Check if OpenAI API key is configured
-if openai.api_key != "your-openai-api-key-here":
+if openai.api_key and openai.api_key != "your-openai-api-key-here" and len(openai.api_key) > 20:
     # Add checkbox to control OpenAI usage
     use_openai = st.sidebar.checkbox(
         "🤖 Enable Career Recommendations", 
@@ -125,7 +126,7 @@ if openai.api_key != "your-openai-api-key-here":
 else:
     use_openai = False
     st.sidebar.warning("⚠️ OpenAI API Key Not Set")
-    st.sidebar.info("💡 Replace the OpenAI API key in the code with your actual key")
+    st.sidebar.info("💡 Add your OpenAI API key to Streamlit secrets (Settings → Secrets)")
 
 # Show Adzuna API status
 if ADZUNA_APP_ID != "your-actual-adzuna-app-id-here" and ADZUNA_APP_KEY != "your-actual-adzuna-app-key-here":
