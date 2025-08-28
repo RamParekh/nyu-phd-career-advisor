@@ -1,4 +1,29 @@
 # NYU PhD Career Advisor App
+# PERFORMANCE OPTIMIZATION: ML model training disabled for faster deployment
+# - Uses instant keyword-based sector prediction instead of slow ML training
+# - Eliminates delays on Streamlit Cloud
+# - Provides same quality predictions with instant results
+
+# =============================================================================
+# 🔧 DATASET CONFIGURATION - UPDATE THESE PATHS FOR YOUR DATA
+# =============================================================================
+# 📁 RIASEC DATASET - ADD YOUR PATH HERE
+RIASEC_DATASET_PATH = "data/RIASEC .xlsx"  # ← CHANGE THIS TO YOUR ACTUAL RIASEC FILE PATH
+
+# 📁 Other datasets (already configured)
+NYU_CAREER_DATA_PATH = "data/imputed_data_NYU copy 3.xlsx"  # ← Your main NYU career data
+HANDSHAKE_EVENTS_PATH = "data/Events for Graduate Students.csv"  # ← Handshake events data
+SENTIMENT_DATA_PATH = "data/sentiment analysis- Final combined .xlsx"  # ← Sentiment analysis data
+TRAINING_DATA_PATH = "data/phd_career_sector_training_data_final_1200.xlsx"  # ← ML training data
+
+# =============================================================================
+# 🚀 QUICK SETUP GUIDE:
+# =============================================================================
+# 1. Place your RIASEC dataset in the 'data' folder
+# 2. Update RIASEC_DATASET_PATH above with your actual filename
+# 3. The app will automatically load and use your dataset
+# 4. Check the console output for dataset loading confirmation
+# =============================================================================
 
 import streamlit as st
 import openai, pandas as pd, requests, warnings, json, traceback
@@ -83,7 +108,15 @@ CUSTOM_VADER_LEXICON = {
 }
 
 # Move set_page_config here, before any other Streamlit commands
-st.set_page_config(page_title="NYU PhD Career Advisor", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="PhD Compass", layout="wide", initial_sidebar_state="expanded")
+
+# Initialize session state variables
+if 'recommendations_completed' not in st.session_state:
+    st.session_state.recommendations_completed = False
+if 'feedback_data' not in st.session_state:
+    st.session_state.feedback_data = []
+if 'recommendations_data' not in st.session_state:
+    st.session_state.recommendations_data = []
 
 # --- API Keys from Streamlit Secrets ---
 
@@ -97,36 +130,27 @@ ADZUNA_APP_KEY = "cf15da52bcd7e5585e5cd2d7fea154e5"  # Replace this
 # OpenAI API Key - Add your actual key here
 # Get your key from: https://platform.openai.com/api-keys
 
-# OpenAI API Key - Load from Streamlit secrets for security
-try:
-    # Try to get API key from Streamlit secrets first
-    openai.api_key = st.secrets["api_keys"]["openai"]
-    print("✅ OpenAI API key loaded from Streamlit secrets")
-except Exception as e:
-    print(f"⚠️ Could not load from Streamlit secrets: {e}")
-    # Fallback to environment variable or placeholder
-    openai.api_key = os.getenv("OPENAI_API_KEY", "your-openai-api-key-here")
-    if openai.api_key == "your-openai-api-key-here":
-        print("⚠️ OpenAI API key not configured - check Streamlit secrets or environment variables")
-    else:
-        print("✅ OpenAI API key loaded from environment variable")
+# Replace this with your actual OpenAI API key
+openai.api_key = ""  # Replace this
 
-# Import os for environment variable fallback
+# Fallback to environment variables if needed
 import os
+if openai.api_key == "your-actual-openai-api-key-here":
+    openai.api_key = os.getenv("OPENAI_API_KEY", "your-openai-api-key-here")
 
 # Check if OpenAI API key is configured
-if openai.api_key and openai.api_key != "your-openai-api-key-here" and len(openai.api_key) > 20:
+if openai.api_key != "your-actual-openai-api-key-here":
     # Add checkbox to control OpenAI usage
     use_openai = st.sidebar.checkbox(
-        "🤖 Enable Career Recommendations", 
+        "🔓 Enable personalization", 
         value=False,
-        help="Check this to use OpenAI for personalized career advice (uses API tokens)"
+        help="Check this to use AI for personalized career insights (uses API tokens)"
     )
     # No info messages needed - checkbox state is clear
 else:
     use_openai = False
     st.sidebar.warning("⚠️ OpenAI API Key Not Set")
-    st.sidebar.info("💡 Add your OpenAI API key to Streamlit secrets (Settings → Secrets)")
+    st.sidebar.info("💡 Replace the OpenAI API key in the code with your actual key")
 
 # Show Adzuna API status
 if ADZUNA_APP_ID != "your-actual-adzuna-app-id-here" and ADZUNA_APP_KEY != "your-actual-adzuna-app-key-here":
@@ -374,7 +398,7 @@ html, body, .stApp {
   margin: 20px 0;
 }
 
-.job-card {
+.opportunity-card {
   background: #fff;
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -384,26 +408,26 @@ html, body, .stApp {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.job-card:hover {
+.opportunity-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
-.job-card h4 {
+.opportunity-card h4 {
   margin: 0 0 12px;
   color: var(--violet);
   font-size: 1.3rem;
   font-weight: 600;
 }
 
-.job-card a {
+.opportunity-card a {
   color: var(--violet);
   text-decoration: none;
   font-weight: 600;
   transition: color 0.2s ease;
 }
 
-.job-card a:hover {
+.opportunity-card a:hover {
   color: var(--violet-light);
   text-decoration: none;
 }
@@ -519,7 +543,7 @@ div[data-testid="stTabs"] button[aria-selected="true"] {
     padding: 16px !important;
   }
   
-  .job-card, .recommendations {
+  .opportunity-card, .recommendations {
     padding: 16px;
   }
 }
@@ -538,12 +562,15 @@ st.markdown("""
 
 <div class='nyu-main-bar'>
   <img src='https://i.pinimg.com/736x/0b/af/fb/0baffb91607677363de658bebdbb1ee1.jpg' alt='NYU Logo'>
-  <span>NYU PhD Career Advisor</span>
+  <span>PhD Compass</span>
 </div>
 
 <div class='nyu-hero'>
   <div class='nyu-hero-text'>
-    Empowering PhD Students for Career Success
+    PhD Compass
+          <div style='font-size: 1.2rem; margin-top: 10px; font-weight: 400;'>
+        Research-Based Insights For Navigating Doctoral Careers
+      </div>
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -551,17 +578,27 @@ st.markdown("""
 st.markdown(NYU_CSS, unsafe_allow_html=True)
 
 # --- Sidebar: How to Use and Contact Info ---
-st.sidebar.markdown("""
-### ℹ️ How to Use This App
-1. Fill in your academic and career information.
-2. Click **Get Career Recommendations** (max 3 per session).
-3. Review the personalized advice and job postings.
-4. Use the feedback section to help us improve!
+st.sidebar.markdown("### ℹ️ How to Use This App")
 
-""")
+with st.sidebar.expander("📋 Click to expand instructions", expanded=False):
+    st.markdown("""
+    1. Fill in your academic and career information.
+    2. Click **Explore Your Options** (max 3 per session).
+    3. Review the personalized advice and explore opportunities.
+    4. Use the feedback section to help us improve!
+    """)
 
 # Add feedback management section to sidebar
 st.sidebar.markdown("---")
+st.sidebar.markdown("### 🧠 RIASEC Integration")
+st.sidebar.info("""
+**New: Focused RIASEC Assessment**
+- 10 targeted questions across 6 dimensions
+- Real-time scoring and visualization
+- Career pathway mapping based on personality
+- Enhanced AI recommendations using RIASEC data
+""")
+
 st.sidebar.markdown("### 📊 Feedback Management")
 
 # Show feedback count if available
@@ -584,28 +621,61 @@ if 'feedback_data' in st.session_state and len(st.session_state.feedback_data) >
         st.session_state.feedback_data = []
         st.sidebar.success("✅ Feedback cleared!")
         st.rerun()
+    
+    # Recommendations management
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 📋 Recommendations")
+    
+    if 'recommendations_data' in st.session_state and len(st.session_state.recommendations_data) > 0:
+        st.sidebar.success(f"📋 {len(st.session_state.recommendations_data)} recommendations generated")
+        
+        # Download all recommendations as CSV
+        recommendations_df = pd.DataFrame(st.session_state.recommendations_data)
+        csv = recommendations_df.to_csv(index=False)
+        st.sidebar.download_button(
+            label="📥 Download All Recommendations (CSV)",
+            data=csv,
+            file_name="career_recommendations.csv",
+            mime="text/csv",
+            key="sidebar_download_all"
+        )
+        
+        # Clear recommendations button
+        if st.sidebar.button("🗑️ Clear All Recommendations"):
+            st.session_state.recommendations_data = []
+            st.session_state.recommendations_completed = False
+            st.sidebar.success("✅ All recommendations cleared!")
+            st.rerun()
+    else:
+        st.sidebar.info("📋 No recommendations generated yet")
 else:
     st.sidebar.info("📝 No feedback collected yet")
+    st.sidebar.info("📋 No recommendations generated yet")
 
 
 
-# Function to ensure model is loaded
+# Function to ensure model is loaded (DISABLED for faster performance)
 def ensure_model_loaded():
     """Ensure the sector prediction model is loaded."""
+    # DISABLED: ML model training causes delays on Streamlit Cloud
     # Use cached model training
-    print("🔄 Loading sector prediction model...")
-    model = train_cached_model()
-    if model is not None:
-        print("✅ Sector prediction model loaded successfully!")
-        return model
-    else:
-        print("❌ Failed to load sector prediction model")
-        return None
+    # print("🔄 Loading sector prediction model...")
+    # model = train_cached_model()
+    # if model is not None:
+    #     print("✅ Sector prediction model loaded successfully!")
+    #     return model
+    # else:
+    #     print("❌ Failed to load sector prediction model")
+    #     return None
+    
+    # Return None to use keyword-based predictions instead
+    print("🚀 Skipping ML model training for instant performance")
+    return None
 
 def predict_sector_from_text(user_goals, desired_industry, work_env):
     if not user_goals:
         st.warning("No user goals provided for sector prediction")
-        return "Unknown"
+        return "Unknown", "Not available"
     
     # Create comprehensive input text for analysis
     input_text = f"{user_goals} {desired_industry} {work_env}".lower()
@@ -614,10 +684,11 @@ def predict_sector_from_text(user_goals, desired_industry, work_env):
     def analyze_text_for_sector(text):
         # Academic/Research indicators
         academic_keywords = [
-            'academic', 'research', 'professor', 'university', 'college', 'school',
+            'academic', 'professor', 'university', 'college', 'school',
             'teaching', 'lecture', 'publish', 'paper', 'journal', 'conference',
-            'phd', 'doctoral', 'thesis', 'dissertation', 'scholar', 'faculty',
+            'thesis', 'dissertation', 'scholar', 'faculty',
             'postdoc', 'postdoctoral', 'tenure', 'academia', 'higher education'
+            # Note: 'research', 'researcher', 'phd', 'doctoral' are handled separately with lower weights
         ]
         
         # Industry/Corporate indicators
@@ -625,7 +696,15 @@ def predict_sector_from_text(user_goals, desired_industry, work_env):
             'industry', 'company', 'business', 'corporate', 'startup', 'tech',
             'product', 'development', 'engineering', 'software', 'data', 'analytics',
             'consulting', 'finance', 'banking', 'investment', 'marketing', 'sales',
-            'operations', 'management', 'leadership', 'entrepreneur', 'founder'
+            'operations', 'management', 'leadership', 'entrepreneur', 'founder',
+            'data scientist', 'research engineer', 'product researcher', 'applied research',
+            'industrial research', 'corporate research', 'business research', 'market research',
+            'product development', 'r&d', 'research and development', 'machine learning',
+            'ai', 'artificial intelligence', 'data analyst', 'business analyst',
+            'product manager', 'project manager', 'technical lead', 'architect',
+            'developer', 'programmer', 'coder', 'scientist', 'researcher',
+            'innovation', 'technology', 'digital', 'online', 'web', 'mobile',
+            'cloud', 'cybersecurity', 'blockchain', 'automation', 'optimization'
         ]
         
         # Government/Public sector indicators
@@ -657,40 +736,107 @@ def predict_sector_from_text(user_goals, desired_industry, work_env):
             'secondary', 'curriculum', 'pedagogy', 'student teaching', 'classroom'
         ]
         
-        # Count keyword matches for each sector
+        # Enhanced scoring with weighted keywords and better balance
         scores = {
-            'Academic': sum(1 for word in academic_keywords if word in text),
-            'Industry': sum(1 for word in industry_keywords if word in text),
-            'Government': sum(1 for word in government_keywords if word in text),
-            'Non-profit': sum(1 for word in nonprofit_keywords if word in text),
-            'Healthcare': sum(1 for word in healthcare_keywords if word in text),
-            'Education': sum(1 for word in education_keywords if word in text)
+            'Academic': 0,
+            'Industry': 0,
+            'Government': 0,
+            'Non-profit': 0,
+            'Healthcare': 0,
+            'Education': 0
         }
+        
+        # Weighted scoring system
+        for word in academic_keywords:
+            if word in text:
+                # Reduce weight for common academic words that might appear in industry contexts
+                if word in ['research', 'researcher', 'phd', 'doctoral']:
+                    scores['Academic'] += 0.5  # Lower weight for ambiguous terms
+                else:
+                    scores['Academic'] += 1
+        
+        for word in industry_keywords:
+            if word in text:
+                # Give higher weight to clear industry indicators
+                if word in ['industry', 'company', 'business', 'corporate', 'startup', 'tech', 'product', 'engineering', 'software', 'data scientist', 'consulting', 'finance']:
+                    scores['Industry'] += 2  # Higher weight for strong industry indicators
+                else:
+                    scores['Industry'] += 1
+        
+        # Special handling for research + industry combinations
+        # If both research and industry keywords are present, prioritize industry for applied research
+        if scores['Academic'] > 0 and scores['Industry'] > 0:
+            # Strong boost for industry research roles
+            if any(word in text for word in ['data scientist', 'research engineer', 'product researcher', 'applied research', 'industrial research', 'corporate research', 'business research', 'market research', 'product development', 'r&d', 'research and development']):
+                scores['Industry'] += 3
+                print(f"🔍 Boosting Industry score for applied research role in industry")
+            # Only boost academic for pure academic roles
+            elif any(word in text for word in ['professor', 'university', 'college', 'academia', 'tenure', 'faculty', 'postdoc', 'postdoctoral']):
+                scores['Academic'] += 2
+                print(f"🔍 Boosting Academic score for pure academic role")
+        
+        # Additional industry boost for modern tech roles
+        tech_industry_indicators = ['data scientist', 'machine learning', 'ai', 'artificial intelligence', 'software engineer', 'product manager', 'data analyst', 'research engineer']
+        for indicator in tech_industry_indicators:
+            if indicator in text:
+                scores['Industry'] += 1.5
+                print(f"🔍 Boosting Industry score for tech role: {indicator}")
         
         # Find the sector with the highest score
         max_score = max(scores.values())
         if max_score == 0:
-            return "Industry"  # Default only if no clear indicators
+            return "Industry"  # Default to industry if no clear indicators
         
         # Return the sector with the highest score
         best_sector = max(scores, key=scores.get)
+        print(f"🔍 Final scores: {scores}")
+        
+        # Debug: Show what was detected in the input
+        detected_academic = [word for word in academic_keywords if word in text]
+        detected_industry = [word for word in industry_keywords if word in text]
+        print(f"🔍 Detected academic keywords: {detected_academic}")
+        print(f"🔍 Detected industry keywords: {detected_industry}")
+        
         return best_sector
     
-    # Try ML model first if available
-    if ML_AVAILABLE:
-        text_sector_model = ensure_model_loaded()
-        if text_sector_model is not None:
-            try:
-                prediction = text_sector_model.predict([input_text])[0]
-                return prediction
-            except Exception as e:
-                print(f"ML model prediction failed: {e}, falling back to keyword analysis")
-                # Fall through to keyword analysis
+    # Skip ML model training for faster performance - use keyword analysis directly
+    # if ML_AVAILABLE:
+    #     text_sector_model = ensure_model_loaded()
+    #     if text_sector_model is not None:
+    #         try:
+    #             prediction = text_sector_model.predict([input_text])[0]
+    #             return prediction
+    #         except Exception as e:
+    #             print(f"ML model prediction failed: {e}, falling back to keyword analysis")
+    #             # Fall through to keyword analysis
     
-    # Use enhanced keyword analysis as fallback
+    # Use enhanced keyword analysis directly for instant results
     sector = analyze_text_for_sector(input_text)
     print(f"🔍 Sector prediction for '{input_text[:100]}...': {sector}")
-    return sector
+    
+    # More intelligent logic: prioritize industry for applied research roles
+    strong_academic_indicators = ['professor', 'university', 'college', 'academia', 'tenure', 'faculty', 'postdoc', 'postdoctoral']
+    strong_industry_indicators = ['industry', 'company', 'business', 'corporate', 'startup', 'tech', 'product', 'engineering', 'software', 'data scientist', 'consulting', 'finance', 'r&d', 'research and development']
+    
+    has_strong_academic = any(word in input_text for word in strong_academic_indicators)
+    has_strong_industry = any(word in input_text for word in strong_industry_indicators)
+    
+    # Special case: if both research and industry indicators present, favor industry for applied research
+    if 'research' in input_text and has_strong_industry:
+        print(f"🔍 Research + Industry indicators detected - favoring Industry for applied research")
+        return "Industry", "Keyword Analysis (Enhanced - Applied Research)"
+    
+    # Only override to Academic if there are STRONG academic indicators AND no strong industry indicators
+    if has_strong_academic and not has_strong_industry:
+        print(f"🔍 Overriding to Academic due to strong academic indicators")
+        return "Academic", "Keyword Analysis (Enhanced)"
+    elif has_strong_industry:
+        print(f"🔍 Overriding to Industry due to strong industry indicators")
+        return "Industry", "Keyword Analysis (Enhanced)"
+    else:
+        # Let the keyword scoring decide
+        print(f"🔍 Using keyword scoring result: {sector}")
+        return sector, "Keyword Analysis (Enhanced)"
 
 
 
@@ -1328,7 +1474,7 @@ if sentiment_df is not None:
     print(f"{'='*60}")
 
 def get_sentiment_insights(selected_division, sentiment_scores):
-    """Generate sentiment insights for career recommendations."""
+    """Generate sentiment insights for career exploration."""
     if sentiment_scores is None:
         return ""
     
@@ -1705,7 +1851,7 @@ def fetch_adzuna_jobs(query="data scientist", location="New York"):
 
 def display_adzuna_jobs(job_data):
     if not job_data or 'results' not in job_data:
-        st.write("No jobs found.")
+        st.write("No opportunities found in this area.")
         return
     for job in job_data['results']:
         title = job.get("title", "N/A")
@@ -1723,13 +1869,13 @@ def display_adzuna_jobs(job_data):
             salary_range = "N/A"
 
         st.markdown(f"""
-        <div class='job-card'>
+        <div class='opportunity-card'>
             <h4>{title}</h4>
             <p><strong>Company:</strong> {company}</p>
             <p><strong>Location:</strong> {job_location}</p>
-            <p><strong>Salary Range:</strong> {salary_range}</p>
+            <p><strong>Compensation:</strong> {salary_range}</p>
             <p>{description[:200]}...</p>
-            <a href='{redirect_url}' target='_blank'>View Job Posting</a>
+            <a href='{redirect_url}' target='_blank'>Research This Opportunity</a>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1864,22 +2010,16 @@ class NYUCareerAdvisor:
     def generate_career_advice(
         self,
         selected_division,
-        school,
         citizenship,
-        income,
         user_goals,
         user_tech_skills,
         work_env,
         research_interests,
         desired_industry,
         work_life_balance,
-        mentorship_preference,
         cohort_stage,
         family_location,
-        skill_levels=None,
         job_function=None,
-        financial_scholarships=None,
-        funding=None,
         desirability=None,
         user_riasec=None,
         sentiment_scores=None,
@@ -1965,8 +2105,7 @@ class NYUCareerAdvisor:
 
         insights_str = "\n".join(data_insights) or "No data insights found after filtering."
 
-        if not income.strip():
-            income = "Approx. range from web sources: $60k–$80k"
+        # Income field removed - all students are on fellowship
 
         dataset_certifications = []
         dataset_companies = []
@@ -1985,27 +2124,23 @@ class NYUCareerAdvisor:
         else:
             comp_prompt = "\nNo company data in the dataset. Provide top industry companies."
 
-        predicted_sector = predict_sector_from_text(user_goals, desired_industry, work_env)
+        predicted_sector, ml_method = predict_sector_from_text(user_goals, desired_industry, work_env)
+        # Store the ML method prediction for CSV export
+        st.session_state.ml_model_prediction = ml_method
 
         user_profile_str = (
-            f"School: {school}\n"
             f"PhD Cohort Stage: {cohort_stage}\n"
             f"Citizenship: {citizenship}\n"
-            f"Income: {income}\n"
             f"Career Goals: {user_goals}\n"
             f"Predicted Sector (via ML): {predicted_sector}\n"
             f"Soft Skills: {user_tech_skills}\n"
-            f"Skill Levels: {skill_levels}\n"
-            f"Preferred Job Function: {job_function}\n"
+            f"Roles You'd Like to Explore: {job_function}\n"
             f"Work Environment: {work_env}\n"
             f"Research Interests: {research_interests}\n"
-            f"Desired Industry: {desired_industry}\n"
+            f"Where do you see your career after your PhD?: {desired_industry}\n"
             f"Work-Life Balance (1-5): {work_life_balance}\n"
-            f"Mentorship Preference: {mentorship_preference}\n"
             f"Selected academic_division: {selected_division}\n"
-            f"Financial Scholarships: {financial_scholarships}\n"
-            f"Funding: {funding}\n"
-            f"Desirability: {desirability}\n"
+            f"Market Demand: {desirability}\n"
             f"Family Location: {family_location}\n"
         )
 
@@ -2013,13 +2148,38 @@ class NYUCareerAdvisor:
 
         # If we do have RIASEC info, add it
         if user_riasec:
-            user_profile_str += "\nApprox RIASEC Scores:\n"
-            # Just show them in the string, plus find top 2
+            user_profile_str += "\nRIASEC Personality Profile:\n"
+            # Sort by score and find top 3
             riasec_list = sorted(user_riasec.items(), key=lambda x: x[1], reverse=True)
-            top_riasec = [c for (c,score) in riasec_list[:2]]
+            top_riasec = [c for (c,score) in riasec_list[:3]]
+            
             for dim,score in riasec_list:
-                user_profile_str += f"{dim}: {score}\n"
-            user_profile_str += f"\nTop codes: {', '.join(top_riasec)}\n"
+                user_profile_str += f"{dim}: {score}/7\n"
+            user_profile_str += f"\nTop RIASEC Codes: {', '.join(top_riasec)}\n"
+            
+            # Enhanced RIASEC-based career insights
+            riasec_insights = []
+            for dimension, score in riasec_list:
+                if score >= 6.5:
+                    riasec_insights.append(f"Very Strong {dimension} preference (score: {score}) - EXCELLENT for {dimension.lower()}-oriented careers")
+                elif score >= 5.5:
+                    riasec_insights.append(f"Strong {dimension} preference (score: {score}) - highly recommended for {dimension.lower()}-oriented careers")
+                elif score >= 4.5:
+                    riasec_insights.append(f"Moderate {dimension} preference (score: {score}) - well-suited for {dimension.lower()}-oriented roles")
+                elif score >= 3.5:
+                    riasec_insights.append(f"Developing {dimension} preference (score: {score}) - potential for growth in {dimension.lower()}-oriented areas")
+                else:
+                    riasec_insights.append(f"Emerging {dimension} preference (score: {score}) - area for development and exploration")
+            
+            user_profile_str += "\nRIASEC Career Insights:\n" + "\n".join(riasec_insights) + "\n"
+            
+            # Add specific career pathway recommendations based on top RIASEC codes
+            user_profile_str += "\nRecommended Career Pathways Based on RIASEC:\n"
+            career_mapping = create_riasec_career_mapping()
+            for i, (dim, score) in enumerate(riasec_list[:3], 1):
+                if dim in career_mapping:
+                    mapping = career_mapping[dim]
+                    user_profile_str += f"{i}. {dim} ({score}/7): {', '.join(mapping['careers'][:3])} in {', '.join(mapping['sectors'])}\n"
 
         if cohort_stage.lower() == "first year":
             year_instructions = (
@@ -2070,9 +2230,15 @@ class NYUCareerAdvisor:
         
         # --- NEW: Add explicit instructions for LLM to reference these scores ---
         prompt = f"""
-        You are an NYU career advisor. Incorporate the data below into a set of 
+        You are an NYU career advisor specializing in PhD career pathways. Incorporate the data below into a set of 
         short-term (0-3 months), medium-term (3-12 months), and long-term (1+ years) 
-        career recommendations. 
+        career insights. 
+
+        **CRITICAL: RIASEC ANALYSIS MUST BE CENTRAL TO RECOMMENDATIONS**
+        - Use the RIASEC scores to identify the best career pathways
+        - Match high-scoring dimensions to specific career opportunities
+        - Consider how RIASEC preferences align with different sectors and roles
+        - Provide specific examples of careers that match their top RIASEC codes
 
         **MUST REFERENCE** the crucial columns (Job location, Salary, Benefits, etc.) 
         with the given average ratings or top responses. Clearly tie these columns 
@@ -2110,7 +2276,16 @@ class NYUCareerAdvisor:
         - If the user has family in a specific location, prefer roles or suggestions near that location if relevant.
         - Provide suggestions about skill-building, scholarships/funding, and in-demand certifications.
         - Mention 'Job location', 'Salary', 'Benefits', etc. in short-term, medium-term, and long-term recommendations.
-        - **FOR EACH RECOMMENDATION SECTION (Short/Medium/Long-term), YOU MUST INCLUDE A 'Sentiment Justification' BULLET**: Reference at least one relevant sentiment or theme score (e.g., 'research' theme sentiment is 0.40, which supports academia recommendations for this division). If a theme has negative sentiment, provide strategies to address or mitigate these concerns.
+        - **FOR EACH RECOMMENDATION SECTION (Short/Medium/Long-term), YOU MUST INCLUDE:**
+          a) **RIASEC Justification**: Explain how the recommendation aligns with their top RIASEC dimensions
+          b) **Sentiment Justification**: Reference at least one relevant sentiment or theme score
+        - **RIASEC-CAREER MAPPING**: Provide specific career examples for their top RIASEC codes:
+          * Realistic: Engineering, construction, agriculture, technical trades
+          * Investigative: Research, data science, academia, scientific consulting
+          * Artistic: Design, creative writing, media, arts administration
+          * Social: Teaching, counseling, healthcare, community development
+          * Enterprising: Entrepreneurship, sales, management, politics
+          * Conventional: Finance, accounting, administration, compliance
         - **INCORPORATE SENTIMENT ANALYSIS**: Use the sentiment insights to provide more nuanced career advice. If sentiment is positive, emphasize opportunities and success stories. If negative, address potential challenges and provide strategies to overcome them.
         - **INCORPORATE THEMATIC ANALYSIS**: Use the thematic insights to address specific concerns or highlight positive aspects mentioned by students in the same division. Reference the representative quotes when relevant to make advice more relatable and data-driven.
         - Keep it concise, structured, and actionable.
@@ -2131,7 +2306,150 @@ class NYUCareerAdvisor:
         return self.query_openai(messages)
 
 # ----------------------------------------------------------------------------
-# Career Recommendations Tab
+# RIASEC Career Recommendation Model
+# ----------------------------------------------------------------------------
+def train_riasec_career_model(riasec_data_path):
+    """
+    Train a model to predict career pathways based on RIASEC scores.
+    This function can be enhanced with your actual RIASEC dataset.
+    """
+    try:
+        # Load RIASEC data if available
+        if os.path.exists(riasec_data_path):
+            riasec_df = pd.read_excel(riasec_data_path)
+            print(f"✅ Loaded {len(riasec_df)} RIASEC records")
+            
+            # 🔧 ADD YOUR RIASEC DATASET PROCESSING HERE
+            # Example of what you can do with your dataset:
+            # 1. Analyze survey responses for each dimension
+            # 2. Train ML models to predict career pathways
+            # 3. Create custom career mappings based on your data
+            # 4. Extract specific skills and requirements
+            
+            print("📊 RIASEC Dataset Columns:", list(riasec_df.columns))
+            print("📊 Sample RIASEC Data:")
+            print(riasec_df.head())
+            
+            # This is where you would implement the actual model training
+            # For now, return a simple mapping function
+            return create_riasec_career_mapping()
+        else:
+            print(f"⚠️ RIASEC data file not found: {riasec_data_path}")
+            return create_riasec_career_mapping()
+            
+    except Exception as e:
+        print(f"❌ Error training RIASEC model: {e}")
+        return create_riasec_career_mapping()
+
+def create_riasec_career_mapping():
+    """
+    Create a mapping of RIASEC dimensions to career pathways.
+    This can be enhanced with your actual dataset analysis.
+    """
+    career_mapping = {
+        "Realistic": {
+            "careers": ["Engineering", "Construction", "Agriculture", "Technical Trades", "Manufacturing", "Architecture"],
+            "skills": ["Technical skills", "Hands-on work", "Problem-solving", "Attention to detail"],
+            "sectors": ["Industry", "Government", "Technical Services"]
+        },
+        "Investigative": {
+            "careers": ["Research Scientist", "Data Scientist", "Academic Professor", "Consultant", "Analyst", "Policy Researcher"],
+            "skills": ["Analytical thinking", "Research methods", "Data analysis", "Critical thinking"],
+            "sectors": ["Academia", "Research Institutions", "Consulting", "Government"]
+        },
+        "Artistic": {
+            "careers": ["Designer", "Creative Director", "Content Creator", "Arts Administrator", "Media Producer", "Writer"],
+            "skills": ["Creativity", "Design thinking", "Communication", "Innovation"],
+            "sectors": ["Creative Industries", "Media", "Arts", "Marketing"]
+        },
+        "Social": {
+            "careers": ["Teacher", "Counselor", "Healthcare Professional", "Community Developer", "Trainer", "Social Worker"],
+            "skills": ["Communication", "Empathy", "Teaching", "Interpersonal skills"],
+            "sectors": ["Education", "Healthcare", "Non-profit", "Social Services"]
+        },
+        "Enterprising": {
+            "careers": ["Entrepreneur", "Business Leader", "Sales Manager", "Policy Maker", "Consultant", "Executive"],
+            "skills": ["Leadership", "Communication", "Strategic thinking", "Networking"],
+            "sectors": ["Business", "Entrepreneurship", "Politics", "Consulting"]
+        },
+        "Conventional": {
+            "careers": ["Financial Analyst", "Accountant", "Administrator", "Compliance Officer", "Project Manager", "Data Manager"],
+            "skills": ["Organization", "Attention to detail", "Analytical skills", "Process management"],
+            "sectors": ["Finance", "Administration", "Government", "Corporate"]
+        }
+    }
+    return career_mapping
+
+def get_riasec_career_recommendations(riasec_scores, career_mapping, riasec_analysis=None):
+    """
+    Generate enhanced career recommendations based on RIASEC scores and analysis.
+    """
+    recommendations = []
+    
+    # Sort dimensions by score
+    sorted_dimensions = sorted(riasec_scores.items(), key=lambda x: x[1], reverse=True)
+    
+    # Get top 3 dimensions for better analysis
+    top_dimensions = sorted_dimensions[:3]
+    
+    for dimension, score in top_dimensions:
+        if dimension in career_mapping:
+            mapping = career_mapping[dimension]
+            
+            # Enhanced recommendation based on score strength and confidence
+            if score >= 6.5:
+                strength = "very strong"
+                confidence = "excellent match"
+                priority = "primary"
+            elif score >= 5.5:
+                strength = "strong"
+                confidence = "highly recommended"
+                priority = "primary"
+            elif score >= 4.5:
+                strength = "moderate"
+                confidence = "well-suited"
+                priority = "secondary"
+            elif score >= 3.5:
+                strength = "developing"
+                confidence = "potential for growth"
+                priority = "developmental"
+            else:
+                strength = "emerging"
+                confidence = "area for development"
+                priority = "developmental"
+            
+            # Add confidence analysis if available
+            confidence_analysis = ""
+            if riasec_analysis and dimension in riasec_analysis:
+                analysis = riasec_analysis[dimension]
+                if analysis['confidence'] == 'high':
+                    confidence_analysis = " (high consistency in responses)"
+                elif analysis['confidence'] == 'medium':
+                    confidence_analysis = " (moderate consistency in responses)"
+                else:
+                    confidence_analysis = " (low consistency - consider retaking assessment)"
+            
+            recommendation = {
+                "dimension": dimension,
+                "score": score,
+                "strength": strength,
+                "confidence": confidence + confidence_analysis,
+                "priority": priority,
+                "careers": mapping["careers"],
+                "skills": mapping["skills"],
+                "sectors": mapping["sectors"],
+                "raw_scores": list(riasec_analysis[dimension].get('raw_scores', [])) if riasec_analysis and dimension in riasec_analysis else []
+            }
+            recommendations.append(recommendation)
+    
+    return recommendations
+
+# Initialize RIASEC career model after functions are defined
+riasec_career_model = train_riasec_career_model(RIASEC_DATASET_PATH)
+print(f"✅ RIASEC career model initialized with dataset: {RIASEC_DATASET_PATH}")
+
+# ----------------------------------------------------------------------------
+# Explore Your Options Tab
 # ----------------------------------------------------------------------------
 # Sample Data Generation Functions (when AI is disabled)
 # ----------------------------------------------------------------------------
@@ -2251,46 +2569,44 @@ def generate_sample_career_advice(**kwargs):
         </ol>
     </div>
     
-    <p><em>💡 <strong>Note:</strong> This is sample advice. Enable AI recommendations in the sidebar for personalized analysis using your actual data.</em></p>
+            <p><em>💡 <strong>Note:</strong> This is sample advice. Enable personalization in the sidebar for personalized analysis using your actual data.</em></p>
     """
     
     return advice + general_advice
 
 # ----------------------------------------------------------------------------
-def career_recommendations_tab(advisor):
-    st.markdown("<h1 class='header'>Career Recommendations</h1>", unsafe_allow_html=True)
+def explore_options_tab(advisor):
+    st.markdown("<h1 class='header'>Explore Your Options</h1>", unsafe_allow_html=True)
     if df is None:
         st.error("Error loading NYU dataset. Please check if the file 'data/imputed_data_NYU copy 3.xlsx' exists in the correct location.")
         return
 
     # --- RECOMMENDATION GENERATION ---
     if not use_openai:
-        st.warning("🤖 **Career Recommendations Disabled**")
-        st.info("💡 Check the sidebar to enable personalized career recommendations (uses API tokens)")
+        st.warning("🔓 **Personalization Disabled**")
+        st.info("💡 Check the sidebar to enable personalization for enhanced insights (uses API tokens)")
         st.markdown("""
-        **Available Features:**
-        - Career path prediction using ML model
-        - Sample RIASEC personality profile
-        - No personalized career advice (to save tokens)
+        **What You Can Explore:**
+        - Pathway insights from alumni data
+        - A sample RIASEC profile
+        - Exploration mode with optional personalization
         """)
     else:
-        st.success("🤖 **Career Recommendations Enabled**")
+        st.success("🔓 **Personalization Enabled**")
     
-    st.info("Click 'Get Career Recommendations' to generate personalized advice.")
+    st.info("Click Explore Your Options to see insights informed by alumni patterns.")
 
     if "academic_division" not in df.columns:
         possible_divisions = ["(No academic_division column)"]
     else:
         possible_divisions = df["academic_division"].dropna().unique().tolist()
 
-    selected_division = st.selectbox("Select your academic_division from dataset:", possible_divisions, help="Choose your division as listed in the dataset.")
+    selected_division = st.selectbox("Academic Division", possible_divisions, help="Choose your division as listed in the dataset.")
 
-    st.markdown("<h2 class='subheader'>Your Personal Info</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 class='subheader'>Your Profile</h2>", unsafe_allow_html=True)
     col1, col2 = st.columns(2)
     with col1:
-        user_school = st.text_input("Which school at NYU did you attend?", help="E.g., GSAS, Tandon, Steinhardt")
-        user_income = st.text_input("Approximate Income (optional)", help="This helps us tailor recommendations")
-        user_goals = st.text_area("Your Career Goals:", help="Describe your ideal career path after your PhD")
+        user_goals = st.text_area("Your Career Goals:", help="Describe your ideal career pathway after your PhD")
     with col2:
         user_tech_skills = st.text_area("Your Soft Skills:", help="E.g., communication, teamwork, leadership")
         user_citizenship = st.selectbox("Citizenship Status", [
@@ -2302,24 +2618,105 @@ def career_recommendations_tab(advisor):
 
     cohort_stage = st.radio("PhD Cohort Stage", ["First Year", "All but Dissertation (ABD)"], index=0, help="Select your current stage in the PhD journey.")
 
-    st.markdown("#### Additional Preferences (Optional)")
+    st.markdown("#### Additional Preferences")
     work_env = st.selectbox("Preferred Work Environment", ["Collaborative", "Independent", "Hybrid"], help="What type of work environment do you prefer?")
     research_interests = st.text_input("Your Primary Research Interests", help="E.g., machine learning, public health, etc.")
-    desired_industry = st.selectbox("Desired Career Path", ["Academia", "Industry", "Government", "Non-profit"], help="Where do you see your career after your PhD?")
-    work_life_balance = st.selectbox("Work-Life Balance Priority (1=Low, 5=High)", [1,2,3,4,5], index=2, help="How important is work-life balance to you?")
-    mentorship_preference = st.text_input("Describe your ideal mentorship style (e.g., hands-on, advisory)", help="What kind of mentorship do you prefer?")
-    skill_levels = st.text_input("List your technical skill levels (e.g., 'Python: Advanced, R: Intermediate')", help="List your technical skills and proficiency.")
-    job_function = st.text_input("Preferred Job Function (e.g., Data Scientist, R&D, Product Manager)", help="What job function are you targeting?")
-    financial_scholarships = st.text_input("Financial Scholarships (e.g., Fulbright, NSF grant)", help="List any scholarships or grants you've received.")
-    funding = st.text_input("Funding Status (e.g., departmental funding, self-funded)", help="How is your PhD funded?")
-    desirability = st.text_input("Desirability (e.g., how in-demand your field or profile is)", help="How in-demand is your field or profile?")
+    desired_industry = st.selectbox("Where do you see your career after your PhD?", ["Academia", "Industry", "Government", "Non-profit", "Entrepreneurial", "I'm not sure", "I'm open"], help="Where do you see your career after your PhD?")
+    work_life_balance = st.selectbox("How important is work-life balance to you?", [1,2,3,4,5], index=2, help="How important is work-life balance to you?")
+
+
+    job_function = st.text_input("Roles You'd Like to Explore (e.g., Data Scientist, R&D, Product Manager)", help="What job function are you targeting?")
+
+
+    desirability = st.text_input("Market Demand (e.g., how much demand there is for this role or pathway)", help="How much demand there is for this role or pathway?")
+
+    # --- RIASEC Personality Assessment ---
+    st.markdown("#### 🧠 RIASEC Personality Assessment")
+    st.markdown("*Rate how well each statement describes you (1=Not at all, 7=Very much)*")
+    
+    # RIASEC questions based on your dataset (10 focused questions)
+    riasec_questions = {
+        "Realistic": [
+            "I enjoy working with tools and machines",
+            "I prefer practical, hands-on work"
+        ],
+        "Investigative": [
+            "I enjoy solving complex problems",
+            "I like to analyze data and research"
+        ],
+        "Artistic": [
+            "I enjoy creative expression and design",
+            "I prefer non-conformity and originality"
+        ],
+        "Social": [
+            "I enjoy teaching and helping others",
+            "I prefer working with people"
+        ],
+        "Enterprising": [
+            "I enjoy leadership and persuasion",
+            "I like to take charge and make decisions"
+        ],
+        "Conventional": [
+            "I enjoy organization and attention to detail",
+            "I prefer following rules and procedures"
+        ]
+    }
+    
+    # Collect RIASEC scores with enhanced scoring model
+    riasec_scores = {}
+    riasec_analysis = {}
+    
+    for dimension, questions in riasec_questions.items():
+        st.markdown(f"**{dimension}**")
+        
+        # Display both questions for this dimension
+        raw_scores = []
+        for i, question in enumerate(questions):
+            score = st.slider(f"{question}", 1, 7, 4, key=f"{dimension}_{i}")
+            raw_scores.append(score)
+        
+        # Enhanced scoring model with weighted calculations
+        if raw_scores:
+            # Calculate weighted average (first question slightly more important)
+            weighted_score = (raw_scores[0] * 0.6) + (raw_scores[1] * 0.4)
+            
+            # Apply confidence adjustment based on score consistency
+            score_variance = abs(raw_scores[0] - raw_scores[1])
+            if score_variance <= 1:
+                confidence_boost = 0.2  # High consistency
+            elif score_variance <= 2:
+                confidence_boost = 0.1  # Medium consistency
+            else:
+                confidence_boost = 0.0  # Low consistency
+            
+            final_score = min(7.0, weighted_score + confidence_boost)
+            riasec_scores[dimension] = round(final_score, 1)
+            
+            # Store analysis for recommendations
+            riasec_analysis[dimension] = {
+                'raw_scores': raw_scores.copy(),  # Make a copy to ensure it's a list
+                'weighted_score': weighted_score,
+                'confidence': 'high' if score_variance <= 1 else 'medium' if score_variance <= 2 else 'low',
+                'score_variance': score_variance
+            }
+        
+        # Show the score with confidence indicator
+        if dimension in riasec_analysis:
+            confidence_emoji = "🟢" if riasec_analysis[dimension]['confidence'] == 'high' else "🟡" if riasec_analysis[dimension]['confidence'] == 'medium' else "🔴"
+            st.markdown(f"**{dimension} Score: {riasec_scores[dimension]}/7** {confidence_emoji} *{riasec_analysis[dimension]['confidence']} confidence*")
+        else:
+            st.markdown(f"**{dimension} Score: {riasec_scores[dimension]}/7**")
+        st.markdown("---")
 
     # --- Disable button until required fields are filled ---
-    can_recommend = user_goals.strip() and user_tech_skills.strip()
+    can_recommend = user_goals.strip() and user_tech_skills.strip() and all(riasec_scores.values())
     if not can_recommend:
-        st.warning("Please provide at least your Career Goals and Soft Skills.")
+        if not user_goals.strip() or not user_tech_skills.strip():
+            st.warning("Please provide at least your Career Goals and Soft Skills.")
+        else:
+            st.warning("Please complete the RIASEC Personality Assessment.")
     
-    if st.button("Get Career Recommendations", disabled=not can_recommend):
+    if st.button("Explore Your Options", disabled=not can_recommend):
         # Show loading progress
         progress_bar = st.progress(0)
         status_text = st.empty()
@@ -2327,13 +2724,17 @@ def career_recommendations_tab(advisor):
         # 1. Predict sector using ML model and display
         status_text.text("🔍 Analyzing your career goals and predicting sector...")
         progress_bar.progress(25)
-        predicted_sector = predict_sector_from_text(user_goals, desired_industry, work_env)
+        predicted_sector, ml_method = predict_sector_from_text(user_goals, desired_industry, work_env)
+        # Store the ML method prediction for CSV export
+        st.session_state.ml_model_prediction = ml_method
         sector_label = {
             "Academic": "Academia",
             "Industry": "Industry",
             "Government": "Government",
             "Non-profit": "Non-profit",
             "Entrepreneurial": "Business",
+            "I'm not sure": "Exploring Options",
+            "I'm open": "Open to Possibilities",
             "Unknown": "Unknown (Model Error)"
         }.get(predicted_sector, predicted_sector)
         
@@ -2341,9 +2742,9 @@ def career_recommendations_tab(advisor):
         st.markdown(f"""
         <div style='margin:20px 0; padding:20px; border:2px solid #57068c; background:linear-gradient(135deg, #57068c10, #8850c810); border-radius:12px; box-shadow:0 4px 12px rgba(87,6,140,0.1);'>
             <div style='text-align:center;'>
-                <h3 style='color:#57068c; margin-bottom:10px;'>🎯 Career Path Prediction</h3>
+                <h3 style='color:#57068c; margin-bottom:10px;'>🎯 Career Pathway Prediction</h3>
                 <div style='background:#57068c; color:white; padding:15px; border-radius:8px; margin:10px 0;'>
-                    <strong style='font-size:1.2em;'>Your predicted career path is best aligned with:</strong><br>
+                    <strong style='font-size:1.2em;'>Your predicted career pathway is best aligned with:</strong><br>
                     <span style='font-size:1.5em; font-weight:bold;'>{sector_label}</span>
                 </div>
                 <small style='color:#666;'>*Based on your inputs and NYU dataset analysis*</small>
@@ -2351,75 +2752,51 @@ def career_recommendations_tab(advisor):
         </div>
         """, unsafe_allow_html=True)
 
-        # 2. Infer and display RIASEC scores
+        # 2. Display RIASEC scores
         status_text.text("🧠 Analyzing your personality profile (RIASEC)...")
         progress_bar.progress(50)
-        
-        user_profile_text = (
-            f"Career Goals: {user_goals}\n"
-            f"Soft Skills: {user_tech_skills}\n"
-            f"Research Interests: {research_interests}\n"
-            f"Desired Industry: {desired_industry}\n"
-            f"Work Environment: {work_env}\n"
-            f"Cohort Stage: {cohort_stage}\n"
-        )
         
         # Show immediate feedback
         st.success("✅ Career prediction complete!")
         
-        # Generate RIASEC scores based on AI availability
-        if use_openai:
-            with st.spinner("Analyzing your personality profile with AI..."):
-                riasec_scores = advisor.infer_riasec_scores_via_gpt(user_profile_text)
+        # Display RIASEC scores
+        st.markdown("### 🧠 Your RIASEC Personality Profile")
+        st.markdown("*Based on your self-assessment*")
+        
+        # Create columns for the visualization
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            # Create a radar chart-like visualization using bars
+            st.markdown("#### Your Interest Scores (1-7 Scale)")
             
-            if riasec_scores:
-                st.markdown("### 🧠 Your RIASEC Personality Profile")
-                st.markdown("*Powered by GPT-4 Analysis*")
-            else:
-                st.warning("⚠️ AI analysis failed. Using sample profile.")
-                riasec_scores = generate_sample_riasec_scores(user_profile_text)
-                st.markdown("### 🧠 Your RIASEC Personality Profile")
-                st.markdown("*Using sample analysis (AI was unavailable)*")
-        else:
-            # Use sample RIASEC scores when AI is disabled
-            riasec_scores = generate_sample_riasec_scores(user_profile_text)
-            st.markdown("### 🧠 Your RIASEC Personality Profile")
-            st.markdown("*Using sample analysis (AI disabled to save tokens)*")
+            # Define colors for each dimension
+            colors = {
+                "Realistic": "#FF6B6B",
+                "Investigative": "#4ECDC4", 
+                "Artistic": "#45B7D1",
+                "Social": "#96CEB4",
+                "Enterprising": "#FFEAA7",
+                "Conventional": "#DDA0DD"
+            }
             
-            # Create columns for the visualization
-            col1, col2 = st.columns([2, 1])
+            # Sort by score for better visualization
+            sorted_scores = sorted(riasec_scores.items(), key=lambda x: x[1], reverse=True)
             
-            with col1:
-                # Create a radar chart-like visualization using bars
-                st.markdown("#### Your Interest Scores (1-7 Scale)")
+            for dimension, score in sorted_scores:
+                # Create a progress bar with color
+                color = colors.get(dimension, "#6C757D")
                 
-                # Define colors for each dimension
-                colors = {
-                    "Realistic": "#FF6B6B",
-                    "Investigative": "#4ECDC4", 
-                    "Artistic": "#45B7D1",
-                    "Social": "#96CEB4",
-                    "Enterprising": "#FFEAA7",
-                    "Conventional": "#DDA0DD"
-                }
+                # Calculate percentage for progress bar
+                percentage = (score - 1) / 6 * 100
                 
-                # Sort by score for better visualization
-                sorted_scores = sorted(riasec_scores.items(), key=lambda x: x[1], reverse=True)
-                
-                for dimension, score in sorted_scores:
-                    # Create a progress bar with color
-                    color = colors.get(dimension, "#6C757D")
-                    
-                    # Calculate percentage for progress bar
-                    percentage = (score - 1) / 6 * 100
-                    
-                    # Create the progress bar
-                    st.markdown(f"""
-                    <div style="margin: 10px 0;">
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                            <strong style="color: {color};">{dimension}</strong>
-                            <span style="font-weight: bold;">{score}/7</span>
-                        </div>
+                # Create the progress bar
+                st.markdown(f"""
+                <div style="margin: 10px 0;">
+                    <div style="display: flex; justify-content-between; margin-bottom: 5px;">
+                        <strong style="color: {color};">{dimension}</strong>
+                        <span style="font-weight: bold;">{score}/7</span>
+                    </div>
                         <div style="background: #f0f0f0; border-radius: 10px; height: 20px; overflow: hidden;">
                             <div style="background: {color}; height: 100%; width: {percentage}%; border-radius: 10px; transition: width 0.3s ease;"></div>
                         </div>
@@ -2439,30 +2816,24 @@ def career_recommendations_tab(advisor):
                     </div>
                     """, unsafe_allow_html=True)
 
-                # 3. Generate and display personalized recommendations (only if AI is enabled)
+        # 3. Generate and display personalized recommendations (only if AI is enabled)
         if use_openai:
-            status_text.text("📋 Generating personalized career recommendations...")
+            status_text.text("📋 Generating personalized insights...")
             progress_bar.progress(75)
             
             with st.spinner("Generating your personalized recommendations..."):
                 recommendations = advisor.generate_career_advice(
                     selected_division=selected_division,
-                    school=user_school,
                     citizenship=user_citizenship,
-                    income=user_income,
                     user_goals=user_goals,
                     user_tech_skills=user_tech_skills,
                     work_env=work_env,
                     research_interests=research_interests,
                     desired_industry=desired_industry,
                     work_life_balance=work_life_balance,
-                    mentorship_preference=mentorship_preference,
                     cohort_stage=cohort_stage,
                     family_location="",
-                    skill_levels=skill_levels,
                     job_function=job_function,
-                    financial_scholarships=financial_scholarships,
-                    funding=funding,
                     desirability=desirability,
                     user_riasec=riasec_scores,
                     sentiment_scores=sentiment_scores,
@@ -2475,32 +2846,129 @@ def career_recommendations_tab(advisor):
                 progress_bar.progress(100)
                 status_text.text("✅ Recommendations complete!")
                 
-                st.markdown("### 📋 Your Personalized Career Recommendations")
-                st.markdown("*Generated with AI based on your profile and NYU data*")
+                # Set session state to track that recommendations are completed
+                st.session_state.recommendations_completed = True
+                
+                # Store recommendations data with actual user inputs
+                recommendation_entry = {
+                    'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    'academic_division': selected_division,
+                    'cohort_stage': cohort_stage,
+                    'citizenship': user_citizenship,
+                    'career_goals': user_goals,
+                    'soft_skills': user_tech_skills,
+                    'work_environment': work_env,
+                    'desired_industry': desired_industry,
+                    'work_life_balance': work_life_balance,
+                    'predicted_career_path': predicted_sector,
+                    'ml_model_prediction': st.session_state.get('ml_model_prediction', 'Not available'),
+                    'riasec_scores': str(riasec_scores),
+                    'top_riasec_codes': ', '.join([f"{dim}:{score}" for dim, score in sorted(riasec_scores.items(), key=lambda x: x[1], reverse=True)[:2]]),
+                    'recommendations': recommendations
+                }
+                
+                st.session_state.recommendations_data.append(recommendation_entry)
+                
+                st.markdown("### 📋 Your Personalized Career Insights")
+                st.markdown("*Based on your profile and NYU data*")
                 
                 # Create a beautiful recommendations container
                 st.markdown(f"""
                 <div style='background:white; border:2px solid #57068c; border-radius:12px; padding:25px; margin:20px 0; box-shadow:0 4px 12px rgba(87,6,140,0.1);'>
-                    {recommendations.replace('</div>', '')}
+                    {recommendations}
                 </div>
                 """, unsafe_allow_html=True)
                 
+                # Show recommendations summary
+                st.markdown("---")
+                st.subheader("📊 Recommendations Summary")
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.write("**Profile Information:**")
+                    st.write(f"• Academic Division: {selected_division}")
+                    st.write(f"• Cohort Stage: {cohort_stage}")
+                    st.write(f"• Career Goals: {user_goals[:100]}..." if len(user_goals) > 100 else f"• Career Goals: {user_goals}")
+                    st.write(f"• Work Environment: {work_env}")
+                
+                with col2:
+                    st.write("**Analysis Results:**")
+                    st.write(f"• Predicted Career Pathway: {predicted_sector}")
+                    st.write(f"• ML Model Method: {st.session_state.get('ml_model_prediction', 'Not available')}")
+                    st.write(f"• Total Recommendations: {len(st.session_state.recommendations_data)}")
+                    st.write(f"• Desired Industry: {desired_industry}")
+                    
+                    # Add comprehensive RIASEC summary
+                    st.write("**🧠 RIASEC Personality Profile:**")
+                    top_3_riasec = sorted(riasec_scores.items(), key=lambda x: x[1], reverse=True)[:3]
+                    
+                    # Create a beautiful RIASEC summary
+                    for i, (dim, score) in enumerate(top_3_riasec, 1):
+                        # Determine strength and color
+                        if score >= 6.5:
+                            strength = "Very Strong"
+                            color = "#28a745"  # Green
+                        elif score >= 5.5:
+                            strength = "Strong"
+                            color = "#17a2b8"  # Blue
+                        elif score >= 4.5:
+                            strength = "Moderate"
+                            color = "#ffc107"  # Yellow
+                        elif score >= 3.5:
+                            strength = "Developing"
+                            color = "#fd7e14"  # Orange
+                        else:
+                            strength = "Emerging"
+                            color = "#dc3545"  # Red
+                        
+                        # Get confidence indicator
+                        confidence = riasec_analysis[dim]['confidence'] if dim in riasec_analysis else 'unknown'
+                        confidence_emoji = "🟢" if confidence == 'high' else "🟡" if confidence == 'medium' else "🔴"
+                        
+                        st.markdown(f"""
+                        <div style="background: {color}15; border-left: 4px solid {color}; padding: 10px; margin: 5px 0; border-radius: 4px;">
+                            <strong style="color: {color};">#{i} {dim}</strong> ({score}/7) - {strength} {confidence_emoji}
+                            <br><small>Confidence: {confidence}</small>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    # Add RIASEC career insights
+                    st.write("**🎯 RIASEC Career Insights:**")
+                    career_mapping = create_riasec_career_mapping()
+                    riasec_recommendations = get_riasec_career_recommendations(riasec_scores, career_mapping, riasec_analysis)
+                    
+                    for rec in riasec_recommendations:
+                        priority_emoji = "🎯" if rec['priority'] == 'primary' else "📋" if rec['priority'] == 'secondary' else "🌱"
+                        st.write(f"{priority_emoji} **{rec['dimension']} ({rec['score']}/7)**: {rec['confidence']}")
+                        st.write(f"   → Careers: {', '.join(rec['careers'][:3])}")
+                        st.write(f"   → Skills: {', '.join(rec['skills'][:2])}")
+                
+                # Download current recommendations
+                if st.button("📥 Download These Recommendations (CSV)", key="download_current_recommendations"):
+                    current_recommendation_df = pd.DataFrame([recommendation_entry])
+                    csv = current_recommendation_df.to_csv(index=False)
+                    st.download_button(
+                        label="📥 Download CSV",
+                        data=csv,
+                        file_name=f"career_recommendations_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                        mime="text/csv"
+                    )
+                
                 # --- Feedback section: only show after recommendations ---
                 st.markdown("<h3 style='margin-top: 30px;'> Feedback</h3>", unsafe_allow_html=True)
-                st.markdown("We'd love to hear from you. Your feedback helps us improve future recommendations!")
+                st.markdown("We'd love to hear from you. Your feedback helps us improve future insights!")
 
                 # Simple feedback form without session state
                 feedback = st.radio(
-                    "Did you find these career recommendations helpful?",
+                    "Did you find these insights helpful?",
                     ["Yes", "Somewhat", "No"],
-                    horizontal=True,
-                    key="feedback_radio_recommendations"
+                    horizontal=True
                 )
 
                 feedback_comments = st.text_area(
                     "Additional Comments (optional)",
-                    placeholder="What could be improved? Any specific feedback is helpful.",
-                    key="feedback_comments_recommendations"
+                    placeholder="What could be improved? Any specific feedback is helpful."
                 )
 
                 # Only show the multiselect if "No" is selected
@@ -2517,44 +2985,81 @@ def career_recommendations_tab(advisor):
                             "Missing key suggestions",
                             "Other"
                         ],
-                        help="Choose all that apply",
-                        key="feedback_issues_recommendations"
+                        help="Choose all that apply"
                     )
 
-                if st.button("Submit Feedback", key="submit_feedback_recommendations"):
+                if st.button("Submit Feedback"):
                     st.success("✅ Thanks for your feedback!")
             else:
-                st.warning("No recommendations could be generated. Please check your inputs.")
+                st.warning("No insights could be generated. Please check your inputs.")
         else:
             # When AI is disabled, complete progress and show message
             progress_bar.progress(100)
             status_text.text("✅ Analysis complete!")
             
-            st.info("💡 **Career Recommendations Disabled**")
+            # Set session state to track that recommendations are completed (even if AI is disabled)
+            st.session_state.recommendations_completed = True
+            
+            # Store sample recommendations data
+            sample_recommendations = """**Sample Career Insights**
+
+**Short-term Goals (0-3 months):**
+- Build your professional network
+- Update your resume and LinkedIn profile
+- Research potential employers in your field
+
+**Medium-term Goals (3-12 months):**
+- Gain relevant experience through internships or projects
+- Develop technical skills needed in your target industry
+- Attend industry conferences and events
+
+**Long-term Goals (1+ years):**
+            - Secure a position in your desired career pathway
+- Establish yourself as a professional in your field
+- Plan for career advancement and growth"""
+            
+            recommendation_entry = {
+                'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                'academic_division': selected_division,
+                'cohort_stage': cohort_stage,
+                'citizenship': user_citizenship,
+                'career_goals': user_goals,
+                'soft_skills': user_tech_skills,
+                'work_environment': work_env,
+                'desired_industry': desired_industry,
+                'work_life_balance': work_life_balance,
+                'predicted_career_path': predicted_sector,
+                'ml_model_prediction': st.session_state.get('ml_model_prediction', 'Not available'),
+                'riasec_scores': str(riasec_scores),
+                'top_riasec_codes': ', '.join(sorted(riasec_scores.items(), key=lambda x: x[1], reverse=True)[:2]),
+                'recommendations': sample_recommendations
+            }
+            
+            st.session_state.recommendations_data.append(recommendation_entry)
+            
+            st.info("💡 **Personalization Disabled**")
             st.markdown("""
-            To get personalized career recommendations:
-            1. ✅ Check the "Enable Career Recommendations" checkbox in the sidebar
-            2. 🔄 Click "Get Career Recommendations" again
+            To get personalized career insights:
+            1. ✅ Check the "Enable personalization" checkbox in the sidebar
+            2. 🔄 Click "Explore Your Options" again
             3. 🤖 AI will generate personalized advice based on your profile
             """)
 
     # --- Feedback section: always visible below recommendations button ---
     st.markdown("---")
     st.markdown("<h3 style='margin-top: 30px;'>📝 Feedback</h3>", unsafe_allow_html=True)
-    st.markdown("We'd love to hear from you. Your feedback helps us improve future recommendations!")
+    st.markdown("We'd love to hear from you. Your feedback helps us improve future insights!")
 
     # Simple feedback form without session state
     feedback = st.radio(
         "Did you find this app helpful so far?",
         ["Yes", "Somewhat", "No"],
-        horizontal=True,
-        key="feedback_radio_main"
+        horizontal=True
     )
 
     feedback_comments = st.text_area(
         "Additional Comments (optional)",
-        placeholder="What could be improved? Any specific feedback is helpful.",
-        key="feedback_comments_main"
+        placeholder="What could be improved? Any specific feedback is helpful."
     )
 
     # Only show the multiselect if "No" is selected
@@ -2571,11 +3076,10 @@ def career_recommendations_tab(advisor):
                 "Missing key suggestions",
                 "Other"
             ],
-            help="Choose all that apply",
-            key="feedback_issues_main"
+            help="Choose all that apply"
         )
 
-    if st.button("Submit Feedback", key="submit_feedback_main"):
+    if st.button("Submit Feedback"):
         # Validate feedback submission
         if feedback:
             # Store feedback in session state
@@ -2663,17 +3167,24 @@ def career_recommendations_tab(advisor):
     """, unsafe_allow_html=True)
 
 # ----------------------------------------------------------------------------
-# Job Postings Tab (unchanged)
+# Research Opportunities Tab - Explore the Career Landscape
 # ----------------------------------------------------------------------------
-def job_postings_tab():
-    st.markdown("<h1 class='header'>Job Postings</h1>", unsafe_allow_html=True)
-
-    st.info("Please complete the 'Career Recommendations' tab first to see your personalized recommendations.")
-
-    st.markdown("<h2 class='subheader'>Career Decision Factors</h2>", unsafe_allow_html=True)
+def research_opportunities_tab():
+    st.markdown("<h1 class='header'>Research Opportunities</h1>", unsafe_allow_html=True)
     
     st.markdown("""
-    How important were the following factors in making a decision to work in a job not closely related to the field of your first PhD?
+    **🔬 Explore the Career Landscape**
+    
+    This section helps you research current opportunities and understand what's available in different sectors, 
+    locations, and roles. Think of it as your personal research lab for exploring career possibilities.
+    """)
+
+    st.info("Complete the 'Explore Your Options' tab first to see your personalized insights and understand your career landscape.")
+
+    st.markdown("<h2 class='subheader'>Understanding Your Career Landscape</h2>", unsafe_allow_html=True)
+    
+    st.markdown("""
+    What factors would be most important to you when exploring career opportunities beyond your PhD field? This helps us understand your research interests and preferences.
     """)
     
     career_factors = {
@@ -2700,7 +3211,7 @@ def job_postings_tab():
     if selected_factor == "Pay":
         previous_salary = st.text_input(
             "What was your previous salary range? (e.g., '$40,000/year' or '40k-50k')",
-            help="This helps us recommend jobs with better compensation"
+            help="This helps us explore opportunities with better compensation"
         )
         # Previous salary stored for this session
         
@@ -2718,25 +3229,25 @@ def job_postings_tab():
     elif selected_factor == "Working conditions":
         work_conditions = st.text_area(
             "What specific working conditions were problematic? (e.g., long hours, toxic environment)",
-            help="This helps us find jobs with better working conditions"
+            help="This helps us explore opportunities with better working conditions"
         )
         # Work conditions stored for this session
         
     elif selected_factor == "Professional interests":
         new_interests = st.text_area(
             "What are your new professional interests or goals?",
-            help="This helps us align job recommendations with your interests"
+            help="This helps us align opportunity insights with your interests"
         )
         # New interests stored for this session
         
     elif selected_factor == "Family-related reasons":
         family_considerations = st.text_area(
             "What family-related factors are important? (e.g., need for flexible hours, proximity to family)",
-            help="This helps us find jobs that accommodate your family needs"
+            help="This helps us explore opportunities that accommodate your family needs"
         )
         # Family considerations stored for this session
 
-    st.markdown("<h2 class='subheader'>Real-Time Job Search</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 class='subheader'>Explore Current Opportunities</h2>", unsafe_allow_html=True)
 
     # Modify search location based on career decision factors
     desired_industry = "Industry"  # Default value
@@ -2749,7 +3260,7 @@ def job_postings_tab():
         "Non-profit": "non profit"
     }
     
-    # Define alternative cities for job search
+    # Define alternative cities for opportunity exploration
     alternative_cities = {
         "New York": ["Boston", "Chicago", "Seattle", "San Francisco", "Austin"],
         "Boston": ["New York", "Chicago", "Seattle", "San Francisco", "Austin"],
@@ -2829,7 +3340,7 @@ def job_postings_tab():
         search_location = "Chicago"  # Changed from Boston to Chicago as default
         st.write("Searching in Chicago and other major cities")
 
-    # Adjust job query based on career decision factors
+    # Adjust research query based on career decision factors
     base_query = industry_map.get(desired_industry, "research")
     
     # Enhance query based on user inputs
@@ -2864,21 +3375,22 @@ def job_postings_tab():
             base_query = f"{base_query} local"
             st.write("🏠 Searching for local positions")
 
-    user_query = st.text_input("Additional Job Keywords (optional)", value=base_query)
+    user_query = st.text_input("Additional Research Keywords (optional)", value=base_query, 
+                               help="Add specific terms to explore opportunities that match your interests")
 
-    if st.button("Find Jobs"):
-        with st.spinner("Fetching real-time listings..."):
+    if st.button("Research Opportunities"):
+        with st.spinner("Exploring the current landscape..."):
             job_data = fetch_adzuna_jobs(
                 query=user_query,
                 location=search_location
             )
             if job_data:
-                # Filter and sort jobs based on career decision factors
+                # Filter and sort opportunities based on research preferences
                 if selected_factor == "Pay" and previous_salary:
                     try:
                         # Extract numeric value from salary string
                         salary_num = float(''.join(filter(str.isdigit, previous_salary)))
-                        # Filter jobs with higher salary
+                        # Filter opportunities with higher compensation
                         original_count = len(job_data['results'])
                         job_data['results'] = [
                             job for job in job_data['results']
@@ -2886,10 +3398,11 @@ def job_postings_tab():
                         ]
                         filtered_count = len(job_data['results'])
                         if filtered_count < original_count:
-                            st.info(f"💰 Filtered to {filtered_count} jobs with higher salary than {previous_salary}")
+                            st.info(f"💰 Found {filtered_count} opportunities with higher compensation than {previous_salary}")
                     except ValueError:
-                        st.warning("⚠️ Could not parse salary for filtering")
+                        st.warning("⚠️ Could not parse compensation for filtering")
                 
+                st.success(f"🔍 Found {len(job_data['results'])} opportunities to explore!")
                 display_adzuna_jobs(job_data)
 
 # ----------------------------------------------------------------------------
@@ -2898,14 +3411,14 @@ def job_postings_tab():
 def main():
     try:
         st.title("🎓 NYU PhD Career Advisor")
-        st.write("Welcome! Let's help you find your career path.")
+        st.write("Explore with confidence, guided by research on PhD career pathways.")
         
         advisor = NYUCareerAdvisor(df)
-        tab1, tab2 = st.tabs(["Career Recommendations", "Job Postings"])
+        tab1, tab2 = st.tabs(["Explore Your Options", "Research Opportunities"])
         with tab1:
-            career_recommendations_tab(advisor)
+            explore_options_tab(advisor)
         with tab2:
-            job_postings_tab()
+            research_opportunities_tab()
     except Exception as e:
         st.error(f"🚨 App Error: {e}")
         st.info("Please check the logs for more details.")
