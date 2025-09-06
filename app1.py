@@ -632,6 +632,11 @@ if 'feedback_data' in st.session_state and len(st.session_state.feedback_data) >
         # Download all recommendations as CSV
         recommendations_df = pd.DataFrame(st.session_state.recommendations_data)
         csv = recommendations_df.to_csv(index=False)
+        
+        # Debug info for sidebar
+        st.sidebar.write(f"📊 Data shape: {recommendations_df.shape}")
+        st.sidebar.write(f"📝 CSV size: {len(csv)} chars")
+        
         st.sidebar.download_button(
             label="📥 Download All Recommendations (CSV)",
             data=csv,
@@ -767,16 +772,27 @@ def predict_sector_from_text(user_goals, desired_industry, work_env):
         # If both research and industry keywords are present, prioritize industry for applied research
         if scores['Academic'] > 0 and scores['Industry'] > 0:
             # Strong boost for industry research roles
-            if any(word in text for word in ['data scientist', 'research engineer', 'product researcher', 'applied research', 'industrial research', 'corporate research', 'business research', 'market research', 'product development', 'r&d', 'research and development']):
+            industry_research_roles = [
+                'data scientist', 'research engineer', 'product researcher', 'applied research',
+                'industrial research', 'corporate research', 'business research', 'market research',
+                'product development', 'r&d', 'research and development'
+            ]
+            if any(word in text for word in industry_research_roles):
                 scores['Industry'] += 3
                 print(f"🔍 Boosting Industry score for applied research role in industry")
             # Only boost academic for pure academic roles
-            elif any(word in text for word in ['professor', 'university', 'college', 'academia', 'tenure', 'faculty', 'postdoc', 'postdoctoral']):
+            elif any(word in text for word in [
+                'professor', 'university', 'college', 'academia', 'tenure', 
+                'faculty', 'postdoc', 'postdoctoral'
+            ]):
                 scores['Academic'] += 2
                 print(f"🔍 Boosting Academic score for pure academic role")
         
         # Additional industry boost for modern tech roles
-        tech_industry_indicators = ['data scientist', 'machine learning', 'ai', 'artificial intelligence', 'software engineer', 'product manager', 'data analyst', 'research engineer']
+        tech_industry_indicators = [
+            'data scientist', 'machine learning', 'ai', 'artificial intelligence', 
+            'software engineer', 'product manager', 'data analyst', 'research engineer'
+        ]
         for indicator in tech_industry_indicators:
             if indicator in text:
                 scores['Industry'] += 1.5
@@ -816,7 +832,11 @@ def predict_sector_from_text(user_goals, desired_industry, work_env):
     
     # More intelligent logic: prioritize industry for applied research roles
     strong_academic_indicators = ['professor', 'university', 'college', 'academia', 'tenure', 'faculty', 'postdoc', 'postdoctoral']
-    strong_industry_indicators = ['industry', 'company', 'business', 'corporate', 'startup', 'tech', 'product', 'engineering', 'software', 'data scientist', 'consulting', 'finance', 'r&d', 'research and development']
+    strong_industry_indicators = [
+        'industry', 'company', 'business', 'corporate', 'startup', 'tech', 'product', 
+        'engineering', 'software', 'data scientist', 'consulting', 'finance', 
+        'r&d', 'research and development'
+    ]
     
     has_strong_academic = any(word in input_text for word in strong_academic_indicators)
     has_strong_industry = any(word in input_text for word in strong_industry_indicators)
@@ -2606,9 +2626,9 @@ def explore_options_tab(advisor):
     st.markdown("<h2 class='subheader'>Your Profile</h2>", unsafe_allow_html=True)
     col1, col2 = st.columns(2)
     with col1:
-        user_goals = st.text_area("Your Career Goals:", help="Describe your ideal career pathway after your PhD")
+        user_goals = st.text_area("Your Career Goals:", help="Describe your ideal career pathway after your PhD", key="user_goals_textarea")
     with col2:
-        user_tech_skills = st.text_area("Your Soft Skills:", help="E.g., communication, teamwork, leadership")
+        user_tech_skills = st.text_area("Your Soft Skills:", help="E.g., communication, teamwork, leadership", key="user_tech_skills_textarea")
         user_citizenship = st.selectbox("Citizenship Status", [
             "U.S. Citizen", 
             "Permanent Resident", 
@@ -2716,13 +2736,13 @@ def explore_options_tab(advisor):
         else:
             st.warning("Please complete the RIASEC Personality Assessment.")
     
-    if st.button("Explore Your Options", disabled=not can_recommend):
+    if st.button("Explore Your Options", disabled=not can_recommend, key="explore_options_button"):
         # Show loading progress
         progress_bar = st.progress(0)
         status_text = st.empty()
         
-        # 1. Predict sector using ML model and display
-        status_text.text("🔍 Analyzing your career goals and predicting sector...")
+        # 1. Analyze career goals and preferences
+        status_text.text("🔍 Analyzing your career goals and preferences...")
         progress_bar.progress(25)
         predicted_sector, ml_method = predict_sector_from_text(user_goals, desired_industry, work_env)
         # Store the ML method prediction for CSV export
@@ -2738,88 +2758,17 @@ def explore_options_tab(advisor):
             "Unknown": "Unknown (Model Error)"
         }.get(predicted_sector, predicted_sector)
         
-        # Create a beautiful career prediction card
-        st.markdown(f"""
-        <div style='margin:20px 0; padding:20px; border:2px solid #57068c; background:linear-gradient(135deg, #57068c10, #8850c810); border-radius:12px; box-shadow:0 4px 12px rgba(87,6,140,0.1);'>
-            <div style='text-align:center;'>
-                <h3 style='color:#57068c; margin-bottom:10px;'>🎯 Career Pathway Prediction</h3>
-                <div style='background:#57068c; color:white; padding:15px; border-radius:8px; margin:10px 0;'>
-                    <strong style='font-size:1.2em;'>Your predicted career pathway is best aligned with:</strong><br>
-                    <span style='font-size:1.5em; font-weight:bold;'>{sector_label}</span>
-                </div>
-                <small style='color:#666;'>*Based on your inputs and NYU dataset analysis*</small>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        # Career pathway prediction (console only - not displayed to users)
+        print(f"🔍 Career Pathway Analysis (Console Only): {sector_label}")
+        print(f"🔍 Prediction Method: {ml_method}")
+        print(f"🔍 User Goals: {user_goals[:100]}...")
+        print(f"🔍 Desired Industry: {desired_industry}")
+        print(f"🔍 Work Environment: {work_env}")
 
-        # 2. Display RIASEC scores
-        status_text.text("🧠 Analyzing your personality profile (RIASEC)...")
-        progress_bar.progress(50)
-        
-        # Show immediate feedback
-        st.success("✅ Career prediction complete!")
-        
-        # Display RIASEC scores
-        st.markdown("### 🧠 Your RIASEC Personality Profile")
-        st.markdown("*Based on your self-assessment*")
-        
-        # Create columns for the visualization
-        col1, col2 = st.columns([2, 1])
-        
-        with col1:
-            # Create a radar chart-like visualization using bars
-            st.markdown("#### Your Interest Scores (1-7 Scale)")
-            
-            # Define colors for each dimension
-            colors = {
-                "Realistic": "#FF6B6B",
-                "Investigative": "#4ECDC4", 
-                "Artistic": "#45B7D1",
-                "Social": "#96CEB4",
-                "Enterprising": "#FFEAA7",
-                "Conventional": "#DDA0DD"
-            }
-            
-            # Sort by score for better visualization
-            sorted_scores = sorted(riasec_scores.items(), key=lambda x: x[1], reverse=True)
-            
-            for dimension, score in sorted_scores:
-                # Create a progress bar with color
-                color = colors.get(dimension, "#6C757D")
-                
-                # Calculate percentage for progress bar
-                percentage = (score - 1) / 6 * 100
-                
-                # Create the progress bar
-                st.markdown(f"""
-                <div style="margin: 10px 0;">
-                    <div style="display: flex; justify-content-between; margin-bottom: 5px;">
-                        <strong style="color: {color};">{dimension}</strong>
-                        <span style="font-weight: bold;">{score}/7</span>
-                    </div>
-                        <div style="background: #f0f0f0; border-radius: 10px; height: 20px; overflow: hidden;">
-                            <div style="background: {color}; height: 100%; width: {percentage}%; border-radius: 10px; transition: width 0.3s ease;"></div>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-            
-            with col2:
-                # Show top 2 dimensions
-                top_dimensions = sorted_scores[:2]
-                st.markdown("#### 🎯 Your Top Interests")
-                for i, (dimension, score) in enumerate(top_dimensions, 1):
-                    color = colors.get(dimension, "#6C757D")
-                    st.markdown(f"""
-                    <div style="background: {color}20; padding: 10px; border-radius: 8px; margin: 5px 0; border-left: 4px solid {color};">
-                        <strong style="color: {color};">#{i} {dimension}</strong><br>
-                        <small>Score: {score}/7</small>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-        # 3. Generate and display personalized recommendations (only if AI is enabled)
+        # 2. Generate and display personalized recommendations (only if AI is enabled)
         if use_openai:
             status_text.text("📋 Generating personalized insights...")
-            progress_bar.progress(75)
+            progress_bar.progress(50)
             
             with st.spinner("Generating your personalized recommendations..."):
                 recommendations = advisor.generate_career_advice(
@@ -2879,6 +2828,71 @@ def explore_options_tab(advisor):
                 </div>
                 """, unsafe_allow_html=True)
                 
+                # Add GSAS Workshop Links
+                st.markdown("---")
+                st.markdown("### 🎓 GSAS Professional Development Workshops")
+                
+                # Load workshop data
+                try:
+                    workshop_df = pd.read_excel('data/GSAS_workshop.xlsx')
+                    
+                    # Create a beautiful workshop display
+                    st.markdown("""
+                    <div style='background:linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border:1px solid #dee2e6; border-radius:12px; padding:25px; margin:15px 0; box-shadow:0 4px 12px rgba(87,6,140,0.1);'>
+                        <h4 style='color:#57068c; margin-top:0; text-align:center; font-size:1.3em;'>📚 GSAS Professional Development Programs</h4>
+                        <p style='text-align:center; color:#6c757d; margin-bottom:20px;'>Enhance your academic and professional skills with these specialized workshops</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Display workshops in a grid layout
+                    cols = st.columns(2)
+                    for i, (_, workshop) in enumerate(workshop_df.iterrows()):
+                        col = cols[i % 2]
+                        with col:
+                            st.markdown(f"""
+                            <div style='background:white; border:1px solid #e9ecef; border-radius:8px; padding:15px; margin:8px 0; box-shadow:0 2px 4px rgba(0,0,0,0.1); transition:transform 0.2s ease;'>
+                                <h5 style='color:#57068c; margin:0 0 8px 0; font-size:1.1em;'>{workshop['Name of workshop']}</h5>
+                                <a href='{workshop['Link']}' target='_blank' style='color:#57068c; text-decoration:none; font-size:0.9em;'>
+                                    🔗 Learn More →
+                                </a>
+                            </div>
+                            """, unsafe_allow_html=True)
+                    
+                    # Add additional resources section
+                    st.markdown("""
+                    <div style='background:#f0f8ff; border:1px solid #b3d9ff; border-radius:8px; padding:20px; margin:20px 0;'>
+                        <h5 style='color:#57068c; margin-top:0;'>🔗 Additional Resources</h5>
+                        <div style='display:flex; flex-wrap:wrap; gap:15px;'>
+                            <a href='https://gsas.nyu.edu/student-life/Resources.html' target='_blank' style='color:#57068c; text-decoration:none; padding:8px 12px; background:white; border-radius:6px; border:1px solid #dee2e6;'>
+                                📋 GSAS Student Resources
+                            </a>
+                            <a href='https://library.nyu.edu/services/teaching-learning/workshops/' target='_blank' style='color:#57068c; text-decoration:none; padding:8px 12px; background:white; border-radius:6px; border:1px solid #dee2e6;'>
+                                📚 NYU Library Workshops
+                            </a>
+                            <a href='https://linktr.ee/nyugsas' target='_blank' style='color:#57068c; text-decoration:none; padding:8px 12px; background:white; border-radius:6px; border:1px solid #dee2e6;'>
+                                📱 GSAS Social Media
+                            </a>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                except Exception as e:
+                    st.error(f"Error loading workshop data: {e}")
+                    # Fallback to basic links
+                    st.markdown("""
+                    <div style='background:#f8f9fa; border:1px solid #dee2e6; border-radius:8px; padding:20px; margin:15px 0;'>
+                        <h4 style='color:#57068c; margin-top:0;'>📚 NYU Professional Development Resources</h4>
+                        <p>Enhance your career readiness with these NYU workshops and resources:</p>
+                        <div style='background:white; padding:15px; border-radius:6px; border-left:4px solid #57068c;'>
+                            <strong>🔗 Quick Links:</strong><br>
+                            • <a href='https://gsas.nyu.edu/student-life/Resources.html' target='_blank' style='color:#57068c;'>GSAS Student Resources</a><br>
+                            • <a href='https://library.nyu.edu/services/teaching-learning/workshops/' target='_blank' style='color:#57068c;'>NYU Library Workshops</a><br>
+                            • <a href='https://www.nyu.edu/life/student-life/student-services.html' target='_blank' style='color:#57068c;'>NYU Student Services</a><br>
+                            • <a href='https://linktr.ee/nyugsas' target='_blank' style='color:#57068c;'>GSAS Social Media Resources</a>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
                 # Show recommendations summary
                 st.markdown("---")
                 st.subheader("📊 Recommendations Summary")
@@ -2899,39 +2913,6 @@ def explore_options_tab(advisor):
                     st.write(f"• Total Recommendations: {len(st.session_state.recommendations_data)}")
                     st.write(f"• Desired Industry: {desired_industry}")
                     
-                    # Add comprehensive RIASEC summary
-                    st.write("**🧠 RIASEC Personality Profile:**")
-                    top_3_riasec = sorted(riasec_scores.items(), key=lambda x: x[1], reverse=True)[:3]
-                    
-                    # Create a beautiful RIASEC summary
-                    for i, (dim, score) in enumerate(top_3_riasec, 1):
-                        # Determine strength and color
-                        if score >= 6.5:
-                            strength = "Very Strong"
-                            color = "#28a745"  # Green
-                        elif score >= 5.5:
-                            strength = "Strong"
-                            color = "#17a2b8"  # Blue
-                        elif score >= 4.5:
-                            strength = "Moderate"
-                            color = "#ffc107"  # Yellow
-                        elif score >= 3.5:
-                            strength = "Developing"
-                            color = "#fd7e14"  # Orange
-                        else:
-                            strength = "Emerging"
-                            color = "#dc3545"  # Red
-                        
-                        # Get confidence indicator
-                        confidence = riasec_analysis[dim]['confidence'] if dim in riasec_analysis else 'unknown'
-                        confidence_emoji = "🟢" if confidence == 'high' else "🟡" if confidence == 'medium' else "🔴"
-                        
-                        st.markdown(f"""
-                        <div style="background: {color}15; border-left: 4px solid {color}; padding: 10px; margin: 5px 0; border-radius: 4px;">
-                            <strong style="color: {color};">#{i} {dim}</strong> ({score}/7) - {strength} {confidence_emoji}
-                            <br><small>Confidence: {confidence}</small>
-                        </div>
-                        """, unsafe_allow_html=True)
                     
                     # Add RIASEC career insights
                     st.write("**🎯 RIASEC Career Insights:**")
@@ -2945,15 +2926,24 @@ def explore_options_tab(advisor):
                         st.write(f"   → Skills: {', '.join(rec['skills'][:2])}")
                 
                 # Download current recommendations
-                if st.button("📥 Download These Recommendations (CSV)", key="download_current_recommendations"):
-                    current_recommendation_df = pd.DataFrame([recommendation_entry])
-                    csv = current_recommendation_df.to_csv(index=False)
-                    st.download_button(
-                        label="📥 Download CSV",
-                        data=csv,
-                        file_name=f"career_recommendations_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                        mime="text/csv"
-                    )
+                current_recommendation_df = pd.DataFrame([recommendation_entry])
+                csv = current_recommendation_df.to_csv(index=False)
+                
+                # Debug info (can be removed later)
+                with st.expander("🔍 Debug Info (Click to see data structure)"):
+                    st.write("**Recommendation Entry Structure:**")
+                    st.json(recommendation_entry)
+                    st.write("**DataFrame Info:**")
+                    st.write(f"Shape: {current_recommendation_df.shape}")
+                    st.write("Columns:", current_recommendation_df.columns.tolist())
+                
+                st.download_button(
+                    label="📥 Download These Recommendations (CSV)",
+                    data=csv,
+                    file_name=f"career_recommendations_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv",
+                    key="download_current_recommendations"
+                )
                 
                 # --- Feedback section: only show after recommendations ---
                 st.markdown("<h3 style='margin-top: 30px;'> Feedback</h3>", unsafe_allow_html=True)
@@ -2968,7 +2958,8 @@ def explore_options_tab(advisor):
 
                 feedback_comments = st.text_area(
                     "Additional Comments (optional)",
-                    placeholder="What could be improved? Any specific feedback is helpful."
+                    placeholder="What could be improved? Any specific feedback is helpful.",
+                    key="feedback_comments_1"
                 )
 
                 # Only show the multiselect if "No" is selected
@@ -2988,7 +2979,7 @@ def explore_options_tab(advisor):
                         help="Choose all that apply"
                     )
 
-                if st.button("Submit Feedback"):
+                if st.button("Submit Feedback", key="submit_feedback_1"):
                     st.success("✅ Thanks for your feedback!")
             else:
                 st.warning("No insights could be generated. Please check your inputs.")
@@ -3059,7 +3050,8 @@ def explore_options_tab(advisor):
 
     feedback_comments = st.text_area(
         "Additional Comments (optional)",
-        placeholder="What could be improved? Any specific feedback is helpful."
+        placeholder="What could be improved? Any specific feedback is helpful.",
+        key="feedback_comments_2"
     )
 
     # Only show the multiselect if "No" is selected
@@ -3079,7 +3071,7 @@ def explore_options_tab(advisor):
             help="Choose all that apply"
         )
 
-    if st.button("Submit Feedback"):
+    if st.button("Submit Feedback", key="submit_feedback_2"):
         # Validate feedback submission
         if feedback:
             # Store feedback in session state
@@ -3140,25 +3132,37 @@ def explore_options_tab(advisor):
             pass
         filtered_df = filtered_df.head(5)
 
-        # Only the title is purple, rest is neutral
+        # Enhanced Handshake Events Section
         st.markdown("""
-        <h3 style='color:#57068c; margin-top:32px; margin-bottom:8px;'>Upcoming Handshake Events</h3>
+        <div style='background:linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border:1px solid #dee2e6; border-radius:12px; padding:25px; margin:20px 0; box-shadow:0 4px 12px rgba(87,6,140,0.1);'>
+            <h3 style='color:#57068c; margin-top:0; text-align:center; font-size:1.4em;'>🎯 Upcoming Handshake Events</h3>
+            <p style='text-align:center; color:#6c757d; margin-bottom:20px;'>Connect with employers and explore career opportunities</p>
+        </div>
         """, unsafe_allow_html=True)
 
-        for _, event in filtered_df.iterrows():
-            st.markdown(f"""
-            <div class='event-card' style='margin-bottom:24px; box-shadow:0 2px 8px rgba(0,0,0,0.07); border-left: none;'>
-                <div style='display:flex; flex-direction:column; gap:8px;'>
-                    <span style='font-size:1.1em; font-weight:600;'>{event['Events Name']}</span>
-                    <span><b>Date:</b> {event['Events Start Date Date'].strftime('%b %d, %Y') if pd.notnull(event['Events Start Date Date']) else event['Events Start Date Date']}</span>
-                    <span><b>Type:</b> {event['Event Type Name']}</span>
-                    <a href='{event['Link to Event in Handshake']}' target='_blank'
-                       style='margin-top:8px; display:inline-block; background:#f5f5f5; color:#57068c; padding:8px 18px; border-radius:6px; text-decoration:none; font-weight:600; border:1px solid #e1e1e1; transition:background 0.2s;'>
-                       View on Handshake
+        # Display events in a more attractive grid
+        cols = st.columns(2)
+        for i, (_, event) in enumerate(filtered_df.iterrows()):
+            col = cols[i % 2]
+            with col:
+                st.markdown(f"""
+                <div style='background:white; border:1px solid #e9ecef; border-radius:10px; padding:20px; margin:10px 0; box-shadow:0 3px 10px rgba(0,0,0,0.08); transition:transform 0.2s ease;'>
+                    <div style='display:flex; align-items:center; margin-bottom:12px;'>
+                        <div style='width:4px; height:40px; background:#57068c; border-radius:2px; margin-right:12px;'></div>
+                        <h4 style='color:#57068c; margin:0; font-size:1.1em; line-height:1.3;'>{event['Events Name']}</h4>
+                    </div>
+                    <div style='background:#f8f9fa; padding:12px; border-radius:6px; margin-bottom:15px;'>
+                        <p style='color:#6c757d; margin:0; font-size:0.9em;'>
+                            📅 <strong>Date:</strong> {event['Events Start Date Date'].strftime('%b %d, %Y') if pd.notnull(event['Events Start Date Date']) else event['Events Start Date Date']}<br>
+                            🏷️ <strong>Type:</strong> {event['Event Type Name']}
+                        </p>
+                    </div>
+                    <a href='{event['Link to Event in Handshake']}' target='_blank' 
+                       style='color:white; text-decoration:none; font-weight:500; display:inline-block; padding:10px 16px; background:#57068c; border-radius:6px; text-align:center; width:100%; box-sizing:border-box;'>
+                        🔗 Register for Event →
                     </a>
                 </div>
-            </div>
-            """, unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
     else:
         st.info("No upcoming Handshake events found.")
 
@@ -3222,28 +3226,32 @@ def research_opportunities_tab():
         )
         location_preference = st.text_area(
             "What aspects of the previous location did you not like?",
-            help="This helps us avoid similar locations"
+            help="This helps us avoid similar locations",
+            key="location_preference_textarea"
         )
         # Location preferences stored for this session
         
     elif selected_factor == "Working conditions":
         work_conditions = st.text_area(
             "What specific working conditions were problematic? (e.g., long hours, toxic environment)",
-            help="This helps us explore opportunities with better working conditions"
+            help="This helps us explore opportunities with better working conditions",
+            key="work_conditions_textarea"
         )
         # Work conditions stored for this session
         
     elif selected_factor == "Professional interests":
         new_interests = st.text_area(
             "What are your new professional interests or goals?",
-            help="This helps us align opportunity insights with your interests"
+            help="This helps us align opportunity insights with your interests",
+            key="new_interests_textarea"
         )
         # New interests stored for this session
         
     elif selected_factor == "Family-related reasons":
         family_considerations = st.text_area(
             "What family-related factors are important? (e.g., need for flexible hours, proximity to family)",
-            help="This helps us explore opportunities that accommodate your family needs"
+            help="This helps us explore opportunities that accommodate your family needs",
+            key="family_considerations_textarea"
         )
         # Family considerations stored for this session
 
@@ -3378,7 +3386,7 @@ def research_opportunities_tab():
     user_query = st.text_input("Additional Research Keywords (optional)", value=base_query, 
                                help="Add specific terms to explore opportunities that match your interests")
 
-    if st.button("Research Opportunities"):
+    if st.button("Research Opportunities", key="research_opportunities_button"):
         with st.spinner("Exploring the current landscape..."):
             job_data = fetch_adzuna_jobs(
                 query=user_query,
@@ -3410,11 +3418,48 @@ def research_opportunities_tab():
 # ----------------------------------------------------------------------------
 def main():
     try:
-        st.title("🎓 NYU PhD Career Advisor")
-        st.write("Explore with confidence, guided by research on PhD career pathways.")
+        # Enhanced main header
+        st.markdown("""
+        <div style='background:linear-gradient(135deg, #57068c 0%, #8e44ad 100%); color:white; padding:40px 20px; border-radius:15px; margin-bottom:30px; text-align:center; box-shadow:0 8px 25px rgba(87,6,140,0.3);'>
+            <h1 style='color:white; margin:0; font-size:2.5em; font-weight:700; text-shadow:0 2px 4px rgba(0,0,0,0.3);'>🎓 NYU PhD Career Advisor</h1>
+            <p style='color:#f8f9fa; margin:15px 0 0 0; font-size:1.2em; font-weight:300;'>Explore with confidence, guided by research on PhD career pathways</p>
+            <div style='margin-top:20px;'>
+                <span style='background:rgba(255,255,255,0.2); padding:8px 16px; border-radius:20px; font-size:0.9em;'>Powered by AI & NYU Data</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
         
         advisor = NYUCareerAdvisor(df)
-        tab1, tab2 = st.tabs(["Explore Your Options", "Research Opportunities"])
+        
+        # Enhanced tab styling
+        st.markdown("""
+        <style>
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 2px;
+        }
+        .stTabs [data-baseweb="tab"] {
+            height: 50px;
+            white-space: pre-wrap;
+            background-color: #f8f9fa;
+            border-radius: 10px 10px 0px 0px;
+            gap: 1px;
+            padding-left: 20px;
+            padding-right: 20px;
+            font-weight: 600;
+            font-size: 16px;
+        }
+        .stTabs [aria-selected="true"] {
+            background-color: #57068c;
+            color: white;
+        }
+        .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
+            font-size: 16px;
+            font-weight: 600;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        tab1, tab2 = st.tabs(["🔍 Explore Your Options", "🔬 Research Opportunities"])
         with tab1:
             explore_options_tab(advisor)
         with tab2:
